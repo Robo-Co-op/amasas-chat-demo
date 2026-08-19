@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AMASAS-v0（検証版）</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<style>
+  :root { --accent:#0f766e; --bg:#f8f7f4; --card:#fff; --line:#e5e2da; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",sans-serif; background:var(--bg); color:#1f2937; }
+  header { background:var(--accent); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header p { margin:2px 0 0; font-size:11px; opacity:.85; }
+  #logout { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.4); border-radius:8px; padding:4px 12px; font-size:12px; cursor:pointer; }
+  #app { max-width:760px; margin:0 auto; padding:12px 12px 120px; }
+  .msg { margin:12px 0; display:flex; }
+  .msg.user { justify-content:flex-end; }
+  .bubble { max-width:85%; padding:10px 14px; border-radius:12px; line-height:1.7; font-size:14px; }
+  .user .bubble { background:var(--accent); color:#fff; border-bottom-right-radius:2px; }
+  .assistant .bubble { background:var(--card); border:1px solid var(--line); border-bottom-left-radius:2px; }
+  .bubble table { border-collapse:collapse; font-size:12px; margin:6px 0; }
+  .bubble th,.bubble td { border:1px solid var(--line); padding:3px 8px; }
+  .bubble img { max-width:100%; max-height:320px; width:auto; height:auto; border:1px solid var(--line); border-radius:8px; margin:6px 0; display:block; cursor:zoom-in; }
+  .fb { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:#6b7280; }
+  .fb button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:2px 10px; cursor:pointer; font-size:13px; }
+  .fb button.sel { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .fb input { border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:12px; width:60%; }
+  .fb .done { color:var(--accent); }
+  #composer { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line); padding:10px; }
+  #composer .inner { max-width:760px; margin:0 auto; display:flex; gap:8px; }
+  #input { flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; resize:none; height:44px; }
+  #send { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:0 20px; font-size:14px; cursor:pointer; }
+  #send:disabled { opacity:.5; }
+  #gate { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:10; }
+  #gate .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:28px; width:320px; }
+  #gate h2 { margin:0 0 12px; font-size:16px; }
+  #gate label { display:block; font-size:12px; color:#6b7280; margin:10px 0 4px; }
+  #gate input, #gate select { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:14px; }
+  #gate button { margin-top:16px; width:100%; background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px; font-size:14px; cursor:pointer; }
+  #gate .err { color:#dc2626; font-size:12px; margin-top:8px; min-height:1em; }
+  .thinking { color:#6b7280; font-size:13px; }
+  .sqlnote { font-size:11px; color:#9ca3af; margin-top:4px; }
+  #labbar { display:none; background:#fffbeb; border-bottom:1px solid #fde68a; padding:6px 12px; }
+  #labbar .inner { max-width:760px; margin:0 auto; display:flex; gap:12px; align-items:center; font-size:12px; color:#92400e; flex-wrap:wrap; }
+  #labbar select { border:1px solid #fde68a; border-radius:8px; padding:3px 6px; font-size:12px; background:#fff; }
+  .divider { text-align:center; color:#9ca3af; font-size:11px; margin:16px 0 4px; border-top:1px dashed var(--line); padding-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>AMASAS-v0（検証版）</h1>
+    <p id="tagline">海士町のオープンデータに話しかけるように質問できます。</p>
+  </div>
+  <button id="logout" onclick="logout()">ログアウト</button>
+</header>
+
+<!-- 検証用ツールバー(Preview環境でのみ表示。本番では出ない) -->
+<div id="labbar">
+  <div class="inner">
+    <strong>検証モード</strong>
+    <label>モデル
+      <select id="sel-model" onchange="labChange()">
+        <option value="gemini-3.5-flash">gemini-3.5-flash（高品質）</option>
+        <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite（高速・低コスト）</option>
+        <option value="gemini-2.5-flash">gemini-2.5-flash（現行本番）</option>
+      </select>
+    </label>
+    <label>データ層
+      <select id="sel-layer" onchange="labChange()">
+        <option value="amasas">amasas（出典忠実層）</option>
+        <option value="ai">ai（共有層）</option>
+        <option value="l4">l4（knowledge層・町の一員）</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<div id="gate">
+  <div class="card">
+    <h2>はじめに</h2>
+    <label>合言葉</label>
+    <input id="g-pass" type="text" placeholder="配布された合言葉" />
+    <label>お立場（任意）</label>
+    <select id="g-role">
+      <option value="">選択しない</option>
+      <option value="町">町（役場・町民）</option>
+      <option value="PJT">プロジェクトチーム</option>
+      <option value="関係人口">関係人口・島留学生</option>
+      <option value="その他">その他</option>
+    </select>
+    <label>ニックネーム（任意）</label>
+    <input id="g-name" type="text" placeholder="空欄でOK" />
+    <button onclick="enter()">はじめる</button>
+    <div class="err" id="g-err"></div>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<div id="composer">
+  <div class="inner">
+    <textarea id="input" placeholder="例: 海士町の人口構造を教えて"></textarea>
+    <button id="send" onclick="send()">送信</button>
+  </div>
+</div>
+
+<script>
+const S = {
+  pass: localStorage.getItem("amasas_pass") || "",
+  role: localStorage.getItem("amasas_role") || "",
+  name: localStorage.getItem("amasas_name") || "",
+  session: localStorage.getItem("amasas_session") || crypto.randomUUID(),
+  messages: [],
+  preview: false,
+  model: localStorage.getItem("amasas_model") || "",
+  layer: localStorage.getItem("amasas_layer") || "",
+};
+localStorage.setItem("amasas_session", S.session);
+
+// ---- 検証用ツールバー(Preview環境のみ。authの応答で有効化) ----
+function setupLab(auth) {
+  if (!auth || !auth.preview) return;
+  S.preview = true;
+  const m = document.getElementById("sel-model");
+  const l = document.getElementById("sel-layer");
+  const model = S.model || (auth.defaults && auth.defaults.model) || "";
+  const layer = S.layer || (auth.defaults && auth.defaults.dataLayer) || "amasas";
+  if ([...m.options].some(o => o.value === model)) m.value = model;
+  l.value = layer;
+  S.model = m.value; S.layer = l.value;
+  document.getElementById("labbar").style.display = "block";
+  document.getElementById("tagline").textContent += "回答には👍👎で一言お願いします。";
+}
+
+function labChange() {
+  S.model = document.getElementById("sel-model").value;
+  S.layer = document.getElementById("sel-layer").value;
+  localStorage.setItem("amasas_model", S.model);
+  localStorage.setItem("amasas_layer", S.layer);
+  // 前の設定の文脈が混ざると比較にならないため会話をリセット
+  S.messages = [];
+  document.getElementById("app").appendChild(
+    el(`<div class="divider">設定変更: ${esc(S.model)} × ${esc(S.layer)}層（会話をリセットしました）</div>`)
+  );
+}
+
+// ---- ログアウト / 自動ログアウト(無操作30分) ----
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+
+function logout(msg) {
+  ["amasas_pass", "amasas_session", "amasas_last_active"].forEach(k => localStorage.removeItem(k));
+  S.pass = ""; S.messages = [];
+  S.session = crypto.randomUUID();
+  localStorage.setItem("amasas_session", S.session);
+  document.getElementById("app").innerHTML = "";
+  document.getElementById("gate").style.display = "flex";
+  document.getElementById("g-err").textContent = msg || "";
+}
+
+function touchActivity() { localStorage.setItem("amasas_last_active", Date.now()); }
+
+function idleCheck() {
+  if (!S.pass) return;
+  const last = Number(localStorage.getItem("amasas_last_active") || 0);
+  if (last && Date.now() - last > IDLE_LIMIT_MS) logout("一定時間操作がなかったためログアウトしました");
+}
+setInterval(idleCheck, 60 * 1000);
+["click", "keydown"].forEach(ev => document.addEventListener(ev, touchActivity));
+
+// 認証OKなら応答オブジェクト({ok, preview, defaults})を、NGならnullを返す
+async function checkPass(p) {
+  try {
+    const r = await fetch("/api/auth", { method: "POST", headers: { "x-passcode": p } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.ok === true ? d : null;
+  } catch { return null; }
+}
+
+// 保存済みの合言葉も起動時に再検証(無効なら入口に戻す)+無操作時間チェック
+if (S.pass) {
+  const last = Number(localStorage.getItem("amasas_last_active") || 0);
+  if (last && Date.now() - last > IDLE_LIMIT_MS) {
+    logout("一定時間操作がなかったためログアウトしました");
+  } else {
+    checkPass(S.pass).then(auth => {
+      if (auth) { document.getElementById("gate").style.display = "none"; setupLab(auth); touchActivity(); }
+      else { localStorage.removeItem("amasas_pass"); S.pass = ""; }
+    });
+  }
+}
+
+async function enter() {
+  const btn = document.querySelector("#gate button");
+  const err = document.getElementById("g-err");
+  const p = document.getElementById("g-pass").value.trim();
+  if (!p) { err.textContent = "合言葉を入力してください"; return; }
+  btn.disabled = true; err.textContent = "確認中…";
+  const auth = await checkPass(p);
+  btn.disabled = false;
+  if (!auth) { err.textContent = "合言葉が違います"; return; }
+  err.textContent = "";
+  S.pass = p; S.role = document.getElementById("g-role").value; S.name = document.getElementById("g-name").value.trim();
+  localStorage.setItem("amasas_pass", p);
+  localStorage.setItem("amasas_role", S.role);
+  localStorage.setItem("amasas_name", S.name);
+  touchActivity();
+  document.getElementById("gate").style.display = "none";
+  setupLab(auth);
+}
+
+function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+// 回答内の画像はクリックで原寸を新規タブに開く（委譲リスナー）
+document.getElementById("app").addEventListener("click", (e) => {
+  if (e.target.tagName === "IMG" && e.target.closest(".bubble")) {
+    window.open(e.target.src, "_blank", "noopener");
+  }
+});
+
+function addUser(text) {
+  document.getElementById("app").appendChild(el(`<div class="msg user"><div class="bubble">${esc(text)}</div></div>`));
+}
+function addAssistant(md, messageId, sqlCount, meta) {
+  const html = marked.parse(md);
+  const labNote = S.preview && meta && meta.model ? `（${esc(meta.model)} × ${esc(meta.dataLayer || "")}層）` : "";
+  const note = sqlCount || labNote ? `<div class="sqlnote">${sqlCount ? `データ照会 ${sqlCount} 回 ` : ""}${labNote}</div>` : "";
+  const fb = S.preview && messageId ? `
+    <div class="fb" data-mid="${messageId}">
+      <button onclick="fb(this,'ok')">👍</button>
+      <button onclick="fb(this,'ng')">👎</button>
+      <input placeholder="一言（任意）: ここが違う、こう言うべき 等" />
+      <button onclick="fbSend(this)">送信</button>
+      <span class="done"></span>
+    </div>` : "";
+  const node = el(`<div class="msg assistant"><div class="bubble">${html}${note}${fb}</div></div>`);
+  document.getElementById("app").appendChild(node);
+  node.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+let pendingVerdict = {};
+function fb(btn, verdict) {
+  const box = btn.closest(".fb");
+  box.querySelectorAll("button").forEach(b => b.classList.remove("sel"));
+  btn.classList.add("sel");
+  pendingVerdict[box.dataset.mid] = verdict;
+}
+async function fbSend(btn) {
+  const box = btn.closest(".fb");
+  const mid = box.dataset.mid;
+  const verdict = pendingVerdict[mid];
+  if (!verdict) { box.querySelector(".done").textContent = "👍か👎を選んでください"; return; }
+  const comment = box.querySelector("input").value.trim();
+  const r = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-passcode": S.pass },
+    body: JSON.stringify({ messageId: Number(mid), verdict, comment }),
+  });
+  box.querySelector(".done").textContent = r.ok ? "ありがとうございます！" : "送信に失敗しました";
+}
+
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  document.getElementById("send").disabled = true;
+  addUser(text);
+  S.messages.push({ role: "user", content: text });
+  const thinking = el(`<div class="msg assistant"><div class="bubble thinking">考えています…</div></div>`);
+  document.getElementById("app").appendChild(thinking);
+  thinking.scrollIntoView({ behavior: "smooth", block: "end" });
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-passcode": S.pass },
+      body: JSON.stringify({
+        messages: S.messages, sessionId: S.session, roleTag: S.role, nickname: S.name,
+        ...(S.preview ? { model: S.model, dataLayer: S.layer } : {}),
+      }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      thinking.remove();
+      if (r.status === 401) {
+        localStorage.removeItem("amasas_pass"); S.pass = "";
+        document.getElementById("gate").style.display = "flex";
+        document.getElementById("g-err").textContent = "合言葉が無効になりました。もう一度入力してください";
+        return;
+      }
+      addAssistant("エラー: " + (data.error || r.status), null, 0);
+    } else {
+      // SSE: 進行状況(status)を表示しながらdoneで回答を受け取る
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "", finished = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop();
+        for (const ev of events) {
+          const line = ev.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          let msg; try { msg = JSON.parse(line.slice(6)); } catch { continue; }
+          if (msg.type === "status") {
+            thinking.querySelector(".bubble").textContent = msg.text;
+          } else if (msg.type === "error") {
+            thinking.remove();
+            addAssistant("エラー: " + msg.text, null, 0);
+            finished = true;
+          } else if (msg.type === "done") {
+            thinking.remove();
+            S.messages.push({ role: "assistant", content: msg.answer });
+            addAssistant(msg.answer, msg.messageId, msg.sqlCount, msg);
+            finished = true;
+          }
+        }
+      }
+      if (!finished) {
+        thinking.remove();
+        addAssistant("通信が途中で切れました。もう一度お試しください。", null, 0);
+      }
+    }
+  } catch (e) {
+    thinking.remove();
+    addAssistant("通信エラーが発生しました。もう一度お試しください。", null, 0);
+  }
+  document.getElementById("send").disabled = false;
+}
+document.getElementById("input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>
