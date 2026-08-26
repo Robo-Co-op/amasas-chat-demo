@@ -515,6 +515,12 @@ async function bootstrap() {
     const d = await r.json();
     if (d.ok !== true) return null;
     if (d.passcode) { S.pass = d.passcode; localStorage.setItem("amasas_pass", S.pass); }
+    // 払い出しが空(サーバー側でAPP_PASSCODE未設定)だと/api/chatが401を返し続ける。
+    // 入口で止めないと、質問して初めて壊れていることに気づくことになる。
+    // serverConfigured … サーバーが払い出せたか（401後の判定に使う）
+    // configured       … 手元に合言葉があるか（入口を通してよいか）
+    d.serverConfigured = !!d.passcode;
+    d.configured = d.serverConfigured || !!S.pass;
     return d;
   } catch { return null; }
 }
@@ -530,6 +536,9 @@ hideLanding();
   const fresh = last && Date.now() - last <= IDLE_LIMIT_MS;
   if (S.pass && fresh) { touchActivity(); boot.then(d => setupLab(d)); }
   else { showLanding(); }
+  boot.then(d => {
+    if (d && !d.configured) logout("ただいま準備中です。設定が整うまでお待ちください。");
+  });
 })();
 
 async function enter(box) {
@@ -540,6 +549,10 @@ async function enter(box) {
   btn.disabled = false;
   if (!auth) {
     err.textContent = "いま接続できませんでした。少し待ってもう一度お試しください。";
+    return;
+  }
+  if (!auth.configured) {
+    err.textContent = "ただいま準備中です。設定が整うまでお待ちください。";
     return;
   }
   err.textContent = "";
@@ -628,8 +641,12 @@ async function send() {
         // 合言葉が回転した場合。払い出しをやり直して一度だけ自動復帰する
         const auth = await bootstrap();
         authInfo = auth;
-        if (auth) { addAssistant("接続を作り直しました。もう一度送信してください。", null, 0); }
-        else { logout("いま接続できませんでした。少し待ってもう一度お試しください。"); }
+        if (!auth) { logout("いま接続できませんでした。少し待ってもう一度お試しください。"); }
+        else if (!auth.serverConfigured) {
+          // 手元の合言葉が拒否され、払い出しも空。再送しても同じなので入口に戻す
+          logout("ただいま準備中です。設定が整うまでお待ちください。");
+        }
+        else { addAssistant("接続を作り直しました。もう一度送信してください。", null, 0); }
         document.getElementById("send").disabled = false;
         return;
       }
