@@ -594,7 +594,10 @@ function logout(msg) {
   }
 }
 
-function touchActivity() { localStorage.setItem("amasas_last_active", Date.now()); }
+function touchActivity() {
+  // チャットに入ってからだけ数える。使い方を読んでいる間のクリックは無関係
+  if (inChat()) localStorage.setItem("amasas_last_active", Date.now());
+}
 
 function idleCheck() {
   if (!inChat()) return;   // 読んでいる間・入口で止まっている間は対象外
@@ -616,15 +619,11 @@ async function bootstrap() {
 
 const boot = bootstrap();
 
-// 前回の会話が生きていればチャットに戻す。そうでなければランディングから
-(function restore() {
-  const last = Number(localStorage.getItem("amasas_last_active") || 0);
-  if (last && Date.now() - last <= IDLE_LIMIT_MS) {
-    showChat(false); touchActivity(); boot.then(d => setupLab(d));
-  } else {
-    showLanding();
-  }
-})();
+// 開いたときは必ず使い方（ランディング）から。前回の続きへ勝手に入らない。
+// 会話の中身(S.messages)は保存していないので、チャットに復帰させても空の画面が
+// 出るだけで、使い方を飛ばす副作用しかなかった
+localStorage.removeItem("amasas_last_active");
+showLanding();
 
 // 引数は押されたボタン/入力欄。上下どちらの行から始めても同じ挙動
 async function startChat(from) {
@@ -641,8 +640,8 @@ async function startChat(from) {
   S.name = name; S.role = slot.querySelector(".e-role").value;
   localStorage.setItem("amasas_name", S.name);
   localStorage.setItem("amasas_role", S.role);
-  touchActivity();
   showChat(true);
+  touchActivity();   // in-chat になった後で押す。順番を逆にすると印が付かない
   boot.then(d => setupLab(d));
   $("input").focus();
 }
