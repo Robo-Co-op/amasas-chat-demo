@@ -3,15 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AMASAS chat（デモ版）</title>
+<title>AMASAS-v0（検証版）</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
-  /* ============================================================
-     チャット画面（従来のまま）
-     ============================================================ */
   :root { --accent:#0f766e; --bg:#f8f7f4; --card:#fff; --line:#e5e2da; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",sans-serif; background:var(--bg); color:#1f2937; }
@@ -38,190 +32,26 @@
   #input { flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; resize:none; height:44px; }
   #send { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:0 20px; font-size:14px; cursor:pointer; }
   #send:disabled { opacity:.5; }
+  #gate { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:10; }
+  #gate .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:28px; width:320px; }
+  #gate h2 { margin:0 0 8px; font-size:16px; }
+  #gate .note { margin:0; font-size:12px; color:#6b7280; line-height:1.6; }
+  #gate label { display:block; font-size:12px; color:#6b7280; margin:10px 0 4px; }
+  #gate input, #gate select { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:14px; }
+  #gate button { margin-top:16px; width:100%; background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px; font-size:14px; cursor:pointer; }
+  #gate .err { color:#dc2626; font-size:12px; margin-top:8px; min-height:1em; }
   .thinking { color:#6b7280; font-size:13px; }
   .sqlnote { font-size:11px; color:#9ca3af; margin-top:4px; }
   #labbar { display:none; background:#fffbeb; border-bottom:1px solid #fde68a; padding:6px 12px; }
   #labbar .inner { max-width:760px; margin:0 auto; display:flex; gap:12px; align-items:center; font-size:12px; color:#92400e; flex-wrap:wrap; }
   #labbar select { border:1px solid #fde68a; border-radius:8px; padding:3px 6px; font-size:12px; background:#fff; }
   .divider { text-align:center; color:#9ca3af; font-size:11px; margin:16px 0 4px; border-top:1px dashed var(--line); padding-top:6px; }
-
-  /* ============================================================
-     ランディングページ（入口）
-     変数は #landing にスコープしているため、チャット画面の
-     --accent / --line 等とは衝突しない
-     ============================================================ */
-  #landing {
-    position:fixed; inset:0; z-index:20; overflow-y:auto; overscroll-behavior:contain;
-    --ink:        #152C3A;
-    --ink-2:      #506776;
-    --ground:     #E9EEEE;
-    --surface:    #FCFDFD;
-    --surface-2:  #F2F6F6;
-    --line:       #C4D1D5;
-    --l4:         #2C6A51;
-    --l4-fill:    #E2EFE8;
-    --db:         #1B5885;
-    --db-fill:    #DFEAF3;
-    --accent:     #AC3B29;
-    --accent-fill:#F7E6E1;
-    --shadow:     0 1px 2px rgba(21,44,58,.06), 0 8px 24px rgba(21,44,58,.07);
-    background:var(--ground); color:var(--ink);
-    font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-    line-height:1.9; -webkit-font-smoothing:antialiased;
-  }
-  #landing .wrap {
-    max-width:860px; margin:0 auto; padding:56px 24px 80px;
-    display:flex; flex-direction:column; gap:56px;
-  }
-  #landing .lp-header { display:flex; flex-direction:column; gap:16px; }
-  #landing .eyebrow {
-    font-family:"IBM Plex Mono", ui-monospace, monospace;
-    font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--l4);
-  }
-  #landing h1 {
-    font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;
-    font-weight:800; font-size:clamp(30px,5.2vw,48px); line-height:1.32;
-    text-wrap:balance; margin:0; color:var(--ink);
-  }
-  #landing .lede { max-width:33em; font-size:16.5px; color:var(--ink-2); margin:0; }
-  #landing .lede strong { color:var(--ink); font-weight:700; }
-
-  #landing section { display:flex; flex-direction:column; gap:20px; }
-  #landing h2 {
-    font-family:"Shippori Mincho B1",serif; font-weight:800;
-    font-size:23px; line-height:1.4; margin:0; text-wrap:balance;
-  }
-  #landing h2 .no {
-    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:500;
-    color:var(--l4); letter-spacing:.1em; display:block; margin-bottom:6px;
-  }
-  #landing section > p { margin:0; max-width:40em; font-size:15px; }
-  #landing section > p strong { font-weight:700; }
-
-  /* 同じ数字・ふたつの見え方 */
-  #landing .compare { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
-  @media (max-width:640px) { #landing .compare { grid-template-columns:1fr; } }
-  #landing .cmp {
-    border-radius:4px; padding:22px 24px; display:flex; flex-direction:column; gap:10px;
-    background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
-  }
-  #landing .cmp.reading { border-color:var(--l4); border-width:1.5px; }
-  #landing .cmp .tag {
-    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em;
-    color:var(--ink-2);
-  }
-  #landing .cmp.reading .tag { color:var(--l4); }
-  #landing .cmp .big {
-    font-family:"Shippori Mincho B1",serif; font-weight:800; font-size:26px; line-height:1.3;
-  }
-  #landing .cmp p { margin:0; font-size:14px; color:var(--ink-2); }
-  #landing .cmp.reading p strong { color:var(--l4); }
-
-  /* 質問の型 */
-  #landing .types { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
-  #landing .type {
-    background:var(--surface); border:1px solid var(--line); border-radius:4px;
-    padding:16px 18px; display:flex; flex-direction:column; gap:4px;
-  }
-  #landing .type b { font-size:14.5px; }
-  #landing .type span { font-size:13px; color:var(--ink-2); }
-
-  /* 質問例 */
-  #landing .qgroup { display:flex; flex-direction:column; gap:12px; }
-  #landing .qhead { font-size:13px; font-weight:700; color:var(--l4); letter-spacing:.04em; }
-  #landing .qa {
-    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent);
-    border-radius:4px; padding:16px 20px; box-shadow:var(--shadow);
-    display:flex; flex-direction:column; gap:8px;
-  }
-  #landing .qa .q {
-    font-family:"Shippori Mincho B1",serif; font-weight:600; font-size:16.5px;
-    color:var(--accent);
-  }
-  #landing .qa .a { font-size:13.5px; color:var(--ink-2); margin:0; }
-  #landing .qa .a strong { color:var(--ink); }
-
-  /* 約束 */
-  #landing .rules { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
-  #landing .rule {
-    background:var(--l4-fill); border:1px solid var(--l4); border-radius:4px;
-    padding:16px 18px; display:flex; flex-direction:column; gap:4px;
-  }
-  #landing .rule b { font-size:14.5px; color:var(--l4); }
-  #landing .rule span { font-size:13px; color:var(--ink-2); }
-
-  /* ご利用にあたって */
-  #landing .notice {
-    background:var(--surface); border:1px solid var(--line); border-radius:4px;
-    padding:20px 24px; display:flex; flex-direction:column; gap:10px;
-  }
-  #landing .notice p { margin:0; font-size:13.5px; color:var(--ink-2); max-width:44em; }
-  #landing .notice p strong { color:var(--ink); }
-  #landing .notice-links { display:flex; flex-wrap:wrap; gap:8px 20px; padding-top:4px; font-size:12.5px; }
-  #landing .notice-links a { color:var(--db); text-underline-offset:3px; }
-  #landing .notice-links .soon { color:var(--ink-2); }
-
-  #landing .cta {
-    background:var(--accent-fill); border:1.5px solid var(--accent); border-radius:4px;
-    padding:24px 28px; display:flex; flex-direction:column; gap:8px;
-  }
-  #landing .cta h2 { color:var(--accent); font-size:20px; }
-  #landing .cta p { margin:0; font-size:14.5px; max-width:42em; }
-
-  #landing .outro {
-    font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;
-    font-weight:800; font-size:clamp(30px,5.2vw,48px); line-height:1.32;
-    text-wrap:balance; margin:8px 0 0;
-  }
-  #landing footer {
-    border-top:1px solid var(--line); padding-top:18px;
-    font-size:12px; color:var(--ink-2); display:flex; flex-direction:column; gap:4px;
-  }
-
-  /* ---------- 入口フォーム（上部・下部の2か所に出す） ---------- */
-  #landing .enter {
-    background:var(--surface); border:1.5px solid var(--l4); border-radius:4px;
-    padding:22px 24px; display:flex; flex-direction:column; gap:14px;
-    box-shadow:var(--shadow);
-  }
-  #landing .enter.lead { background:var(--l4-fill); }
-  #landing .enter h3 {
-    font-family:"Shippori Mincho B1",serif; font-weight:800; font-size:18px;
-    line-height:1.45; margin:0; color:var(--ink); text-wrap:balance;
-  }
-  #landing .enter .enter-note { margin:0; font-size:13px; color:var(--ink-2); max-width:40em; }
-  #landing .enter-form { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
-  #landing .enter-form label {
-    display:flex; flex-direction:column; gap:4px; flex:1 1 190px; min-width:0;
-    font-size:12px; color:var(--ink-2); letter-spacing:.02em;
-  }
-  #landing .enter-form select,
-  #landing .enter-form input {
-    width:100%; border:1px solid var(--line); border-radius:4px; padding:9px 10px;
-    font-size:14px; font-family:inherit; background:var(--surface); color:var(--ink);
-  }
-  #landing .enter-form select:focus,
-  #landing .enter-form input:focus { outline:2px solid var(--l4); outline-offset:-1px; }
-  #landing .enter-form button {
-    flex:0 0 auto; background:var(--l4); color:#fff; border:none; border-radius:4px;
-    padding:10px 30px; font-size:14.5px; font-weight:700; font-family:inherit;
-    cursor:pointer; letter-spacing:.06em; min-height:40px;
-  }
-  #landing .enter-form button:hover { filter:brightness(1.08); }
-  #landing .enter-form button:disabled { opacity:.5; cursor:default; }
-  #landing .enter .err { font-size:12.5px; color:#B3261E; min-height:1em; margin:0; }
-  @media (max-width:520px) {
-    #landing .enter-form { flex-direction:column; align-items:stretch; }
-    /* 縦並びでは flex-basis が高さになってしまうため basis を戻す */
-    #landing .enter-form label { flex:0 0 auto; }
-    #landing .enter-form button { width:100%; }
-  }
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>AMASAS chat（デモ版）</h1>
+    <h1>AMASAS-v0（検証版）</h1>
     <p id="tagline">海士町のオープンデータに話しかけるように質問できます。</p>
   </div>
   <button id="logout" onclick="logout()">入口にもどる</button>
@@ -249,131 +79,22 @@
   </div>
 </div>
 
-<!-- ============================================================
-     ランディングページ（入口）
-     入口フォームは #enter-top と #enter-bottom にJSで注入する
-     ============================================================ -->
-<div id="landing">
-  <div class="wrap">
-
-    <div class="lp-header">
-      <div class="eyebrow">AMASAS ／ プロトタイプ</div>
-      <h1>AMASAS chat の使い方</h1>
-      <p class="lede">AMASAS（アマサス）は、海士町のデータを<strong>「町の人の読み方」で一緒に読んでくれる</strong>AIチャットです。人口も、農地も、お祭りの話も。聞けば、数字と、その数字が町にとって持つ意味と、<strong>あなたにできること</strong>まで返ってきます。</p>
-    </div>
-
-    <!-- 入口フォーム（上） -->
-    <div id="enter-top"></div>
-
-    <section>
-      <h2><span class="no">01</span>ただの数字が、読み方ひとつで変わる</h2>
-      <p>たとえば「海士町の人口は？」。検索すれば数字は出ます。でも同じ数字を、町はこう読んでいます。</p>
-      <div class="compare">
-        <div class="cmp">
-          <div class="tag">ただ調べると</div>
-          <div class="big">2,347人</div>
-          <p>2025年の国勢調査（速報）。ふうん、小さな町だな。……で終わってしまう。</p>
-        </div>
-        <div class="cmp reading">
-          <div class="tag">町の読み方で読むと</div>
-          <div class="big">県内で唯一、増えた町</div>
-          <p>前回から<strong>＋80人。島根県でここだけ</strong>。しかも住民票の数（2,206人）との差・約141人は、<strong>住民票を移さずに島で暮らしている人たち</strong>。町はこの人たちも、島留学生も、島の外から応援する人も含めて「地域経営人口」と呼び、まちづくりの担い手として数えています。<br><strong>──つまりあなたも、もう数のうち。</strong></p>
-        </div>
-      </div>
-      <p>AMASASが返すのは、いつも右側の読み方です。数字だけを言って終わりにしません。</p>
-    </section>
-
-    <section>
-      <h2><span class="no">02</span>どんなことが聞ける？</h2>
-      <p>だいたい7とおりの聞き方に応えられます。かしこまった聞き方はいりません。</p>
-      <div class="types">
-        <div class="type"><b>事実を知りたい</b><span>「人口は？」「ふるさと納税はいくら集まってる？」</span></div>
-        <div class="type"><b>関わり方を探したい</b><span>「エンジニアだけど島に関われる？」「週末だけでも何かできる？」</span></div>
-        <div class="type"><b>町の方針を知りたい</b><span>「町は観光をどうしたいの？」「森はどう使う計画？」</span></div>
-        <div class="type"><b>目標の進みぐあい</b><span>「移住の目標って達成できそう？」「宿泊の目標は？」</span></div>
-        <div class="type"><b>暮らしのこと</b><span>「子育ての環境は？」「お年寄りの暮らしは大丈夫？」</span></div>
-        <div class="type"><b>アイデアを壁打ちしたい</b><span>「島でこんな事業できないかな？」に、データで返してくれる</span></div>
-        <div class="type"><b>場所のこと</b><span>「田んぼはどこに多い？」——地図の画像つきで答えます</span></div>
-      </div>
-    </section>
-
-    <section>
-      <h2><span class="no">03</span>ためしに、こう聞いてみてください</h2>
-      <p>実際に良い答えが返ることを確認済みの質問です。もちろん、自分の言葉で聞くのがいちばんです。</p>
-
-      <div class="qgroup">
-        <div class="qhead">島の人と暮らしのこと</div>
-        <div class="qa">
-          <div class="q">「海士町の最新の人口は？」</div>
-          <p class="a">国勢調査と住民票の数の<strong>2つの物差しを区別して</strong>答えます。その差にこそ、島の物語があります。</p>
-        </div>
-        <div class="qa">
-          <div class="q">「人口2,376人って、どういう目標？」</div>
-          <p class="a">2030年の目標の中身——毎年の自然減▲30人に対して、出生＋15人・移住＋15人・滞在する人で補う<strong>「人口の方程式」</strong>まで説明します。</p>
-        </div>
-      </div>
-
-      <div class="qgroup">
-        <div class="qhead">島の土地と自然のこと（地図つき）</div>
-        <div class="qa">
-          <div class="q">「農地はどこに多いの？」</div>
-          <p class="a">北東（宇受賀・豊田）と中西（福井・海士）の<strong>「2つの稲作核」</strong>という町の読みを、計画図の画像つきで。</p>
-        </div>
-        <div class="qa">
-          <div class="q">「島の森ってどう使い分けてるの？」</div>
-          <p class="a">森林の使い分け（ゾーニング）の図と、<strong>若い森と年老いた森に二極化している</strong>という読みが返ってきます。</p>
-        </div>
-      </div>
-
-      <div class="qgroup">
-        <div class="qhead">あなたの関わりしろ</div>
-        <div class="qa">
-          <div class="q">「AIエンジニアだけど、島に関われることある？」</div>
-          <p class="a">実在する制度——大人の島留学、複業協同組合、あまのわDAO、基金など——から、あなたに合う<strong>入口</strong>を具体名で案内します。</p>
-        </div>
-        <div class="qa">
-          <div class="q">「島の宿泊の目標ってどれくらい？」</div>
-          <p class="a">2030年に2万人泊という公式目標と現状を対比して、<strong>あとどれくらい足りないか</strong>まで示します。ギャップは、そのまま関わりしろです。</p>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2><span class="no">04</span>AMASASの約束</h2>
-      <div class="rules">
-        <div class="rule"><b>出どころを言う</b><span>どの統計の・いつの数字かを必ず添えます。町の公式計画23件が根拠です。</span></div>
-        <div class="rule"><b>数字を作らない</b><span>実績の数字は町のデータベースからだけ。AIの想像で数字は出しません。</span></div>
-        <div class="rule"><b>分からないは、分からない</b><span>まだ集計されていないこと、原本が手に入っていない計画は、正直にそう言います。</span></div>
-      </div>
-    </section>
-
-    <section>
-      <h2><span class="no">05</span>ご利用にあたって</h2>
-      <div class="notice">
-        <p>AMASAS chat は現在<strong>デモ版</strong>です。回答の精度や使われ方を検証しながら運用しています。</p>
-        <p>回答は海士町のデータや関連するナレッジをもとに生成されますが、<strong>内容が不完全な場合や、最新情報と異なる場合があります</strong>。重要な判断を行う際は、必ず公式情報や関係者への確認をお願いします。</p>
-        <p>また、サービス改善と利用実態の把握のため、<strong>質問内容・回答内容・利用状況を記録します</strong>。個人を特定できる情報（氏名・住所・連絡先など）や機密情報は入力しないでください。</p>
-        <div class="notice-links">
-          <span class="soon">利用規約（準備中）</span>
-          <span class="soon">プライバシーポリシー（準備中）</span>
-        </div>
-      </div>
-    </section>
-
-    <div class="cta">
-      <h2>来よう。関わろう。</h2>
-      <p>AMASASは答えの最後に、いつも「次の一歩」を添えます。気になった数字があったら、それがあなたの入口です。まずはひとつ、聞いてみてください。</p>
-    </div>
-
-    <!-- 入口フォーム（下） -->
-    <div id="enter-bottom"></div>
-
-    <p class="outro">数字のむこうに、<br>関われる島が見えてきます。</p>
-
-    <footer>
-      <div>AMASAS デモ版 ── 回答の根拠：第3期海士町創生総合戦略 地域経営人口プラン ほか町の公式計画、および町のデータベース。</div>
-    </footer>
-
+<div id="gate">
+  <div class="card">
+    <h2>はじめに</h2>
+    <p class="note">合言葉はいりません。下の2つはどちらも任意です。</p>
+    <label>お立場（任意）</label>
+    <select id="g-role">
+      <option value="">選択しない</option>
+      <option value="町">町（役場・町民）</option>
+      <option value="PJT">プロジェクトチーム</option>
+      <option value="関係人口">関係人口・島留学生</option>
+      <option value="その他">その他</option>
+    </select>
+    <label>ニックネーム（任意）</label>
+    <input id="g-name" type="text" placeholder="空欄でOK" />
+    <button onclick="enter()">はじめる</button>
+    <div class="err" id="g-err"></div>
   </div>
 </div>
 
@@ -399,66 +120,9 @@ const S = {
 };
 localStorage.setItem("amasas_session", S.session);
 
-function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
-function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
-
-// ---- 入口フォーム（合言葉なし。上部と下部の2か所に同じものを出す） ----
-// 同じ内容を2回書くとずれるため、1つのテンプレートから両方を生成する
-function enterFormHTML(variant) {
-  const lead = variant === "lead";
-  return `
-    <div class="enter ${lead ? "lead" : ""}">
-      <h3>${lead ? "まずは、話しかけてみてください" : "読んでくれてありがとう。では、聞いてみましょう"}</h3>
-      <p class="enter-note">${lead
-        ? "合言葉はいりません。下の2つはどちらも任意です——空欄のまま「はじめる」でも大丈夫です。"
-        : "お立場を選んでおくと、あなたの関わりしろに寄せた答えが返りやすくなります。どちらも任意です。"}</p>
-      <div class="enter-form">
-        <label>お立場（任意）
-          <select data-role>
-            <option value="">選択しない</option>
-            <option value="町">町（役場・町民）</option>
-            <option value="PJT">プロジェクトチーム</option>
-            <option value="関係人口">関係人口・島留学生</option>
-            <option value="その他">その他</option>
-          </select>
-        </label>
-        <label>ニックネーム（任意）
-          <input data-name type="text" placeholder="空欄でOK" />
-        </label>
-        <button data-enter type="button">はじめる</button>
-      </div>
-      <p class="err" data-err></p>
-    </div>`;
-}
-
-function mountEnterForms() {
-  document.getElementById("enter-top").innerHTML = enterFormHTML("lead");
-  document.getElementById("enter-bottom").innerHTML = enterFormHTML("tail");
-  document.querySelectorAll("#landing .enter").forEach(box => {
-    // 前回の選択を復元しておく（2つのフォームは同じ値で始まる）
-    if (S.role) box.querySelector("[data-role]").value = S.role;
-    if (S.name) box.querySelector("[data-name]").value = S.name;
-    box.querySelector("[data-enter]").addEventListener("click", () => enter(box));
-  });
-}
-
-function showLanding(msg) {
-  document.getElementById("landing").style.display = "block";
-  document.getElementById("landing").scrollTop = 0;
-  // 上下2つのフォームは常に同じ値を映す（片方だけ古い選択が残らないように）
-  document.querySelectorAll("#landing .enter").forEach(box => {
-    box.querySelector("[data-role]").value = S.role;
-    box.querySelector("[data-name]").value = S.name;
-  });
-  const errs = document.querySelectorAll("#landing [data-err]");
-  errs.forEach(e => e.textContent = "");
-  if (msg && errs.length) errs[0].textContent = msg;
-}
-function hideLanding() { document.getElementById("landing").style.display = "none"; }
-
 // ---- 検証用ツールバー(Preview環境のみ。authの応答で有効化) ----
 function setupLab(auth) {
-  if (!auth || !auth.preview || S.preview) return;
+  if (!auth || !auth.preview) return;
   S.preview = true;
   const m = document.getElementById("sel-model");
   const l = document.getElementById("sel-layer");
@@ -492,22 +156,24 @@ function logout(msg) {
   S.session = crypto.randomUUID();
   localStorage.setItem("amasas_session", S.session);
   document.getElementById("app").innerHTML = "";
-  showLanding(msg);
+  document.getElementById("gate").style.display = "flex";
+  document.getElementById("g-err").textContent = msg || "";
 }
 
 function touchActivity() { localStorage.setItem("amasas_last_active", Date.now()); }
 
 function idleCheck() {
-  if (document.getElementById("landing").style.display === "none") {
-    const last = Number(localStorage.getItem("amasas_last_active") || 0);
-    if (last && Date.now() - last > IDLE_LIMIT_MS) logout("一定時間操作がなかったため入口にもどりました");
-  }
+  // 合言葉は常に手元にあるので、入口を見ている間は対象外にする
+  if (getComputedStyle(document.getElementById("gate")).display !== "none") return;
+  const last = Number(localStorage.getItem("amasas_last_active") || 0);
+  if (last && Date.now() - last > IDLE_LIMIT_MS) logout("一定時間操作がなかったため入口にもどりました");
 }
 setInterval(idleCheck, 60 * 1000);
 ["click", "keydown"].forEach(ev => document.addEventListener(ev, touchActivity));
 
-// 合言葉欄は廃止したため、デモ用の合言葉はページ側で受け取って保持する。
+// 合言葉の入力欄は廃止したため、デモ用の合言葉はページ側で受け取って保持する。
 // x-passcodeヘッダーを付けずに /api/auth を叩くと払い出される。
+// serverConfigured … サーバーが払い出せたか / configured … 手元に合言葉があるか
 async function bootstrap() {
   try {
     const r = await fetch("/api/auth", { method: "POST" });
@@ -515,10 +181,6 @@ async function bootstrap() {
     const d = await r.json();
     if (d.ok !== true) return null;
     if (d.passcode) { S.pass = d.passcode; localStorage.setItem("amasas_pass", S.pass); }
-    // 払い出しが空(サーバー側でAPP_PASSCODE未設定)だと/api/chatが401を返し続ける。
-    // 入口で止めないと、質問して初めて壊れていることに気づくことになる。
-    // serverConfigured … サーバーが払い出せたか（401後の判定に使う）
-    // configured       … 手元に合言葉があるか（入口を通してよいか）
     d.serverConfigured = !!d.passcode;
     d.configured = d.serverConfigured || !!S.pass;
     return d;
@@ -528,43 +190,40 @@ async function bootstrap() {
 let authInfo = null;
 const boot = bootstrap().then(d => { authInfo = d; return d; });
 
-mountEnterForms();
-hideLanding();
 // 前回のセッションが生きていればチャットに戻し、そうでなければ入口を出す
-(function restore() {
+if (S.pass) {
   const last = Number(localStorage.getItem("amasas_last_active") || 0);
-  const fresh = last && Date.now() - last <= IDLE_LIMIT_MS;
-  if (S.pass && fresh) { touchActivity(); boot.then(d => setupLab(d)); }
-  else { showLanding(); }
-  boot.then(d => {
-    if (d && !d.configured) logout("ただいま準備中です。設定が整うまでお待ちください。");
-  });
-})();
+  if (last && Date.now() - last > IDLE_LIMIT_MS) {
+    logout("一定時間操作がなかったため入口にもどりました");
+  } else if (last) {
+    document.getElementById("gate").style.display = "none";
+    touchActivity();
+    boot.then(d => setupLab(d));
+  }
+}
+// APP_PASSCODE未設定だと/api/chatが401を返し続けるため、入口で止める
+boot.then(d => { if (d && !d.configured) logout("ただいま準備中です。設定が整うまでお待ちください。"); });
 
-async function enter(box) {
-  const btn = box.querySelector("[data-enter]");
-  const err = box.querySelector("[data-err]");
+async function enter() {
+  const btn = document.querySelector("#gate button");
+  const err = document.getElementById("g-err");
   btn.disabled = true; err.textContent = "準備しています…";
   const auth = authInfo || await boot;
   btn.disabled = false;
-  if (!auth) {
-    err.textContent = "いま接続できませんでした。少し待ってもう一度お試しください。";
-    return;
-  }
-  if (!auth.configured) {
-    err.textContent = "ただいま準備中です。設定が整うまでお待ちください。";
-    return;
-  }
+  if (!auth) { err.textContent = "いま接続できませんでした。少し待ってもう一度お試しください。"; return; }
+  if (!auth.configured) { err.textContent = "ただいま準備中です。設定が整うまでお待ちください。"; return; }
   err.textContent = "";
-  S.role = box.querySelector("[data-role]").value;
-  S.name = box.querySelector("[data-name]").value.trim();
+  S.role = document.getElementById("g-role").value; S.name = document.getElementById("g-name").value.trim();
   localStorage.setItem("amasas_role", S.role);
   localStorage.setItem("amasas_name", S.name);
   touchActivity();
-  hideLanding();
+  document.getElementById("gate").style.display = "none";
   setupLab(auth);
   document.getElementById("input").focus();
 }
+
+function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
 // 回答内の画像はクリックで原寸を新規タブに開く（委譲リスナー）
 document.getElementById("app").addEventListener("click", (e) => {
@@ -641,12 +300,9 @@ async function send() {
         // 合言葉が回転した場合。払い出しをやり直して一度だけ自動復帰する
         const auth = await bootstrap();
         authInfo = auth;
-        if (!auth) { logout("いま接続できませんでした。少し待ってもう一度お試しください。"); }
-        else if (!auth.serverConfigured) {
-          // 手元の合言葉が拒否され、払い出しも空。再送しても同じなので入口に戻す
-          logout("ただいま準備中です。設定が整うまでお待ちください。");
-        }
-        else { addAssistant("接続を作り直しました。もう一度送信してください。", null, 0); }
+        if (!auth) logout("いま接続できませんでした。少し待ってもう一度お試しください。");
+        else if (!auth.serverConfigured) logout("ただいま準備中です。設定が整うまでお待ちください。");
+        else addAssistant("接続を作り直しました。もう一度送信してください。", null, 0);
         document.getElementById("send").disabled = false;
         return;
       }
