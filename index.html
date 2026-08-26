@@ -47,10 +47,10 @@
 
   /* ============================================================
      ランディングページ（承認済み。値は一切変更しない）
-     変数は #landing / #entry にスコープしているため、
+     変数は #landing にスコープしているため、
      チャットデモの --accent / --line とは衝突しない
      ============================================================ */
-  #landing, #entry {
+  #landing {
     --ink:        #152C3A;
     --ink-2:      #506776;
     --ground:     #E9EEEE;
@@ -67,7 +67,7 @@
     --btn-fg:     #FCFDFD;
   }
   @media (prefers-color-scheme: dark) {
-    #landing, #entry {
+    #landing {
       --ink: #E5EDF0; --ink-2: #9BB1BC; --ground: #0C181E; --surface: #15242B;
       --surface-2: #1B2E36; --line: #2C424B; --l4: #76C6A0; --l4-fill: #16302A;
       --db: #82BAE2; --db-fill: #142C3C; --accent: #F0907A; --accent-fill: #3B211B;
@@ -75,19 +75,18 @@
       --btn-fg: #21100C;
     }
   }
-  #landing, #entry {
+  #landing {
     position:fixed; inset:0; z-index:20; overflow-y:auto; overscroll-behavior:contain;
     background: var(--ground); color: var(--ink);
     font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
     line-height: 1.9; -webkit-font-smoothing: antialiased;
   }
-  #entry { display:none; }
   #landing .wrap {
     max-width: 860px; margin: 0 auto; padding: 64px 24px 80px;
     display: flex; flex-direction: column; gap: 56px;
   }
   #landing .lp-header { display: flex; flex-direction: column; gap: 16px; }
-  #landing .eyebrow, #entry .eyebrow {
+  #landing .eyebrow {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
     font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--l4);
   }
@@ -202,52 +201,77 @@
      ここから下は「追加」のみ。上のランディングの値は触っていない
      ------------------------------------------------------------ */
 
-  /* 「AIと話してみる」ボタン（上と、CTAの直後の2か所） */
-  #landing .start { display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
+  /* 入口フォーム。旧「AIと話してみる」ボタンと同じ2か所（上と、CTAの直後）に、
+     お名前・お立場・開始ボタンを1行で置く。枠と字は旧入口画面の値のまま */
+  #landing .start { display:flex; flex-direction:column; gap:10px; align-items:stretch; max-width:600px; }
+  #landing .enter-row { display:flex; gap:8px; align-items:stretch; }
   .start-btn {
     font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
     background:var(--accent); color:var(--btn-fg); border:none; border-radius:4px;
     padding:15px 34px; font-size:16px; font-weight:700; letter-spacing:.04em;
     cursor:pointer; line-height:1.4; box-shadow:var(--shadow);
+    transition:filter .18s ease, transform .18s ease;
   }
   .start-btn:hover { filter:brightness(1.06); }
+  .start-btn:active { transform:translateY(1px); }
   .start-btn:focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
   #landing .start-hint { font-size:12.5px; color:var(--ink-2); }
-  @media (max-width:520px) {
-    #landing .start { align-items:stretch; }
-    .start-btn { width:100%; }
+
+  /* 入力欄は旧入口画面と同じ寸法・色（padding・字・枠は変更なし） */
+  #landing .enter-row input, #landing .enter-row select {
+    border:1px solid var(--line); border-radius:4px; padding:11px 12px;
+    font-size:15px; font-family:inherit; background:var(--surface); color:var(--ink);
+    transition:border-color .18s ease;
+  }
+  #landing .enter-row input:focus, #landing .enter-row select:focus {
+    outline:2px solid var(--l4); outline-offset:-1px;
+  }
+  /* プレースホルダがラベルの役目を負うので、既定の薄い灰(3.5:1)では足りない。
+     二次テキストの色を明示して4.5:1以上を確保する（opacityはFirefox対策） */
+  #landing .enter-row input::placeholder { color:var(--ink-2); opacity:1; }
+  #landing .enter-row .e-name { flex:1 1 auto; min-width:0; }
+  #landing .enter-row .e-role { flex:0 1 auto; max-width:11em; }
+  /* 開始ボタンは行に馴染む小ささに。入力欄と同じ高さで揃える */
+  #landing .enter-row .start-btn { flex:0 0 auto; padding:11px 22px; font-size:14.5px; }
+  #landing .entry-err { margin:0; font-size:12.5px; color:var(--accent); }
+  #landing .entry-err:empty { display:none; }
+  /* 見えないラベル。1行に収めるため表示はプレースホルダに任せ、読み上げ用に残す */
+  #landing .vh {
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+  }
+  /* 狭い画面では縦に積む。ボタンは指で押せる高さ(44px)を下回らせない */
+  @media (max-width:560px) {
+    #landing .enter-row { flex-wrap:wrap; }
+    #landing .enter-row .e-name { flex:1 1 100%; }
+    #landing .enter-row .e-role { flex:1 1 100%; max-width:none; }
+    #landing .enter-row .start-btn { flex:1 1 100%; min-height:44px; }
   }
 
-  /* 入口画面（チャットを始める前の軽い1画面） */
-  #entry .entry-wrap {
-    max-width:520px; margin:0 auto; padding:64px 24px 80px;
-    min-height:100%; display:flex; flex-direction:column; justify-content:center; gap:24px;
+  /* ------------------------------------------------------------
+     画面の移り（ランディング ⇄ チャット）。#landing は z-index:20 の
+     全面レイヤーなので、これを透過させるだけで下のチャットに溶ける
+     ------------------------------------------------------------ */
+  #landing {
+    transition:opacity .42s cubic-bezier(.4,0,.2,1), transform .42s cubic-bezier(.4,0,.2,1);
   }
-  #entry .entry-head { display:flex; flex-direction:column; gap:12px; }
-  #entry h2 {
-    font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;
-    font-weight:800; font-size:26px; line-height:1.4; margin:0; text-wrap:balance;
+  #landing.leaving { opacity:0; transform:translateY(-8px); pointer-events:none; }
+  #landing.arriving { animation:lpIn .38s cubic-bezier(.4,0,.2,1) both; }
+  @keyframes lpIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  @keyframes chatIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  body.in-chat header > div,
+  body.in-chat #app,
+  body.in-chat #composer .inner { animation:chatIn .5s cubic-bezier(.4,0,.2,1) both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #landing { transition:none; }
+    #landing.arriving,
+    body.in-chat header > div,
+    body.in-chat #app,
+    body.in-chat #composer .inner { animation:none; }
+    .start-btn { transition:none; }
+    .start-btn:active { transform:none; }
   }
-  #entry .entry-lede { margin:0; font-size:14.5px; color:var(--ink-2); }
-  #entry .entry-card {
-    background:var(--surface); border:1px solid var(--line); border-radius:4px;
-    padding:24px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:6px;
-  }
-  #entry label { font-size:12px; color:var(--ink-2); margin:8px 0 2px; letter-spacing:.02em; }
-  #entry label:first-of-type { margin-top:0; }
-  #entry input, #entry select {
-    width:100%; border:1px solid var(--line); border-radius:4px; padding:11px 12px;
-    font-size:15px; font-family:inherit; background:var(--surface); color:var(--ink);
-  }
-  #entry input:focus, #entry select:focus { outline:2px solid var(--l4); outline-offset:-1px; }
-  #entry .entry-card .start-btn { margin-top:20px; width:100%; padding:14px 20px; }
-  #entry .entry-err { margin:8px 0 0; font-size:12.5px; color:var(--accent); min-height:1em; }
-  #entry .entry-back {
-    align-self:flex-start; background:none; border:none; padding:4px 0; cursor:pointer;
-    font-family:inherit; font-size:13px; color:var(--ink-2); text-decoration:underline;
-    text-underline-offset:3px;
-  }
-  #entry .entry-back:hover { color:var(--ink); }
 </style>
 </head>
 <body>
@@ -283,7 +307,7 @@
 
 <!-- ============================================================
      ランディングページ（承認済み。文言・構成・順序は変更していない）
-     追加したのは .start ブロック2つだけ
+     追加したのは .start ブロック2つだけ（中身はJSが同じ型から流し込む）
      ============================================================ -->
 <div id="landing">
   <div class="wrap">
@@ -294,10 +318,7 @@
       <p class="lede">AMASAS（アマサス）は、海士町のデータを<strong>「町の人の読み方」で一緒に読んでくれる</strong>AIチャットです。人口も、農地も、お祭りの話も。聞けば、数字と、その数字が町にとって持つ意味と、<strong>あなたにできること</strong>まで返ってきます。</p>
     </div>
 
-    <div class="start">
-      <button type="button" class="start-btn" onclick="goEntry()">AIと話してみる</button>
-      <span class="start-hint">登録もパスワードも要りません。数秒で始められます。</span>
-    </div>
+    <div class="start" data-enter="top"></div>
 
     <section>
       <h2><span class="no">01</span>ただの数字が、読み方ひとつで変わる</h2>
@@ -399,10 +420,7 @@
       <p>AMASASは答えの最後に、いつも「次の一歩」を添えます。気になった数字があったら、それがあなたの入口です。まずはひとつ、聞いてみてください。</p>
     </div>
 
-    <div class="start">
-      <button type="button" class="start-btn" onclick="goEntry()">AIと話してみる</button>
-      <span class="start-hint">登録もパスワードも要りません。数秒で始められます。</span>
-    </div>
+    <div class="start" data-enter="end"></div>
 
     <p class="outro">数字のむこうに、<br>関われる島が見えてきます。</p>
 
@@ -410,34 +428,6 @@
       <div>AMASAS デモ版 ── 回答の根拠：第3期海士町創生総合戦略 地域経営人口プラン ほか町の公式計画、および町のデータベース。</div>
     </footer>
 
-  </div>
-</div>
-
-<!-- ============================================================
-     入口画面。チャットを始める前に最小限だけ聞く
-     ============================================================ -->
-<div id="entry">
-  <div class="entry-wrap">
-    <div class="entry-head">
-      <div class="eyebrow">AMASAS ／ チャットデモ</div>
-      <h2>AMASAS chat を始める</h2>
-      <p class="entry-lede">お名前（ニックネーム）だけ教えてください。登録もパスワードも要りません。</p>
-    </div>
-    <div class="entry-card">
-      <label for="e-name">お名前 ／ ニックネーム</label>
-      <input id="e-name" type="text" placeholder="例: たろう" autocomplete="nickname" enterkeyhint="go" />
-      <label for="e-role">お立場（任意）</label>
-      <select id="e-role">
-        <option value="">選択しない</option>
-        <option value="町">町（役場・町民）</option>
-        <option value="PJT">プロジェクトチーム</option>
-        <option value="関係人口">関係人口・島留学生</option>
-        <option value="その他">その他</option>
-      </select>
-      <button type="button" class="start-btn" onclick="startChat()">チャットを始める</button>
-      <p class="entry-err" id="e-err"></p>
-    </div>
-    <button type="button" class="entry-back" onclick="backToLanding()">← 使い方にもどる</button>
   </div>
 </div>
 
@@ -466,27 +456,97 @@ const $ = (id) => document.getElementById(id);
 function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
-// ---- 画面の出し入れ（ランディング → 入口 → チャット） ----
+// ---- 入口フォーム。ランディング内の2か所に同じ型から流し込む ----
+// 片方だけ直して食い違うことがないよう、markupの出どころは常にここ1つ
+const ROLES = [
+  ["", "お立場（任意）"],
+  ["町", "町（役場・町民）"],
+  ["PJT", "プロジェクトチーム"],
+  ["関係人口", "関係人口・島留学生"],
+  ["その他", "その他"],
+];
+const enterHTML = (slot) => `
+      <div class="enter-row">
+        <label class="vh" for="e-name-${slot}">お名前 ／ ニックネーム</label>
+        <input class="e-name" id="e-name-${slot}" type="text" placeholder="お名前（ニックネーム）"
+               autocomplete="nickname" enterkeyhint="go" />
+        <label class="vh" for="e-role-${slot}">お立場（任意）</label>
+        <select class="e-role" id="e-role-${slot}">
+          ${ROLES.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}
+        </select>
+        <button type="button" class="start-btn" onclick="startChat(this)">チャットを始める</button>
+      </div>
+      <p class="entry-err" role="alert"></p>
+      <span class="start-hint">登録もパスワードも要りません。数秒で始められます。</span>`;
+
+document.querySelectorAll("#landing [data-enter]").forEach((slot) => {
+  slot.innerHTML = enterHTML(slot.dataset.enter);
+});
+// 前回の入力を復元（2か所とも同じ値で始める）
+function fillEnter() {
+  document.querySelectorAll("#landing .e-name").forEach((x) => { x.value = S.name; });
+  document.querySelectorAll("#landing .e-role").forEach((x) => { x.value = S.role; });
+}
+fillEnter();
+
+// 上下どちらに打っても他方に映す。片方だけ埋まって迷子になるのを防ぐ
+$("landing").addEventListener("input", (e) => {
+  const cls = e.target.classList.contains("e-name") ? ".e-name"
+            : e.target.classList.contains("e-role") ? ".e-role" : null;
+  if (!cls) return;
+  document.querySelectorAll("#landing " + cls).forEach((x) => {
+    if (x !== e.target) x.value = e.target.value;
+  });
+  clearEnterErr();
+});
+$("landing").addEventListener("change", (e) => {
+  if (e.target.classList.contains("e-role")) {
+    document.querySelectorAll("#landing .e-role").forEach((x) => { x.value = e.target.value; });
+  }
+});
+$("landing").addEventListener("keydown", (e) => {
+  if (e.target.classList.contains("e-name") && e.key === "Enter" && !e.isComposing) {
+    e.preventDefault();
+    startChat(e.target);
+  }
+});
+function clearEnterErr() {
+  document.querySelectorAll("#landing .entry-err").forEach((x) => { x.textContent = ""; });
+}
+
+// ---- 画面の出し入れ（ランディング → チャット。入口画面は挟まない） ----
 let landingScroll = 0;
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const LEAVE_MS = 420;   // CSS の #landing transition と同じ長さ
+let leaveTimer = null;
 
 function showLanding() {
-  $("entry").style.display = "none";
-  $("landing").style.display = "block";
-  $("landing").scrollTop = landingScroll;
+  const l = $("landing");
+  clearTimeout(leaveTimer);
+  document.body.classList.remove("in-chat");
+  l.classList.remove("leaving");
+  l.style.display = "block";
+  l.scrollTop = landingScroll;
+  if (!REDUCED) {   // もどってきたことが分かる程度に、そっと出す
+    l.classList.remove("arriving");
+    void l.offsetWidth;
+    l.classList.add("arriving");
+  }
 }
-function goEntry() {
-  landingScroll = $("landing").scrollTop;   // もどったとき同じ位置に返す
-  $("landing").style.display = "none";
-  $("entry").style.display = "block";
-  $("entry").scrollTop = 0;
-  $("e-err").textContent = "";
-  if (S.role) $("e-role").value = S.role;
-  if (S.name) $("e-name").value = S.name;
-  $("e-name").focus();
+// smooth=true のときだけ、ランディングを透過させて下のチャットに溶かす
+function showChat(smooth) {
+  const l = $("landing");
+  clearTimeout(leaveTimer);
+  l.classList.remove("arriving");
+  document.body.classList.add("in-chat");
+  if (!smooth || REDUCED) { l.classList.remove("leaving"); l.style.display = "none"; return; }
+  l.classList.add("leaving");
+  leaveTimer = setTimeout(() => {
+    l.style.display = "none";
+    l.classList.remove("leaving");
+  }, LEAVE_MS);
 }
-function backToLanding() { showLanding(); }
-function showChat() { $("landing").style.display = "none"; $("entry").style.display = "none"; }
-function inChat() { return $("landing").style.display === "none" && $("entry").style.display === "none"; }
+function inChat() { return document.body.classList.contains("in-chat"); }
 
 // ---- 検証用ツールバー(Preview環境のみ。authの応答で有効化) ----
 function setupLab(auth) {
@@ -525,7 +585,13 @@ function logout(msg) {
   $("app").innerHTML = "";
   landingScroll = 0;
   showLanding();
-  if (msg) { goEntry(); $("e-err").textContent = msg; }
+  if (msg) {
+    // 入口画面が無くなったので、上のフォームの場所で理由を伝える
+    const row = document.querySelector("#landing [data-enter] .enter-row");
+    row.parentElement.querySelector(".entry-err").textContent = msg;
+    row.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+    row.querySelector(".e-name").focus();
+  }
 }
 
 function touchActivity() { localStorage.setItem("amasas_last_active", Date.now()); }
@@ -554,29 +620,32 @@ const boot = bootstrap();
 (function restore() {
   const last = Number(localStorage.getItem("amasas_last_active") || 0);
   if (last && Date.now() - last <= IDLE_LIMIT_MS) {
-    showChat(); touchActivity(); boot.then(d => setupLab(d));
+    showChat(false); touchActivity(); boot.then(d => setupLab(d));
   } else {
     showLanding();
   }
 })();
 
-async function startChat() {
-  const btn = document.querySelector("#entry .start-btn");
-  const err = $("e-err");
-  const name = $("e-name").value.trim();
-  if (!name) { err.textContent = "お名前（ニックネーム）を入れてください。"; $("e-name").focus(); return; }
-  err.textContent = "";
-  S.name = name; S.role = $("e-role").value;
+// 引数は押されたボタン/入力欄。上下どちらの行から始めても同じ挙動
+async function startChat(from) {
+  const slot = from ? from.closest("[data-enter]") : document.querySelector("#landing [data-enter]");
+  const nameEl = slot.querySelector(".e-name");
+  const name = nameEl.value.trim();
+  if (!name) {
+    slot.querySelector(".entry-err").textContent = "お名前（ニックネーム）を入れてください。";
+    nameEl.focus();
+    return;
+  }
+  clearEnterErr();
+  landingScroll = $("landing").scrollTop;   // 入口にもどったとき同じ位置に返す
+  S.name = name; S.role = slot.querySelector(".e-role").value;
   localStorage.setItem("amasas_name", S.name);
   localStorage.setItem("amasas_role", S.role);
   touchActivity();
-  showChat();
+  showChat(true);
   boot.then(d => setupLab(d));
   $("input").focus();
 }
-$("e-name").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); startChat(); }
-});
 
 // 回答内の画像はクリックで原寸を新規タブに開く（委譲リスナー）
 $("app").addEventListener("click", (e) => {
