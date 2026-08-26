@@ -45,6 +45,16 @@
   #labbar select { border:1px solid #fde68a; border-radius:8px; padding:3px 6px; font-size:12px; background:#fff; }
   .divider { text-align:center; color:#9ca3af; font-size:11px; margin:16px 0 4px; border-top:1px dashed var(--line); padding-top:6px; }
 
+  /* チャット側はin-chatになるまで一切描かせない。
+     #landingはz-index:20の被せもの(display制御はJS)なので、これが無いと
+     読み込みの一瞬だけ下のヘッダー・入力欄が見えてしまう。
+     CSSだけで最初の描画から効かせる必要があるため、JSのインラインstyleも
+     上書きできるよう!importantを付ける（in-chatの間は当たらない） */
+  body:not(.in-chat) header,
+  body:not(.in-chat) #labbar,
+  body:not(.in-chat) #app,
+  body:not(.in-chat) #composer { display:none !important; }
+
   /* ============================================================
      ランディングページ（承認済み。値は一切変更しない）
      変数は #landing にスコープしているため、
