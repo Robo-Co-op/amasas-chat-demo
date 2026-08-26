@@ -2,6 +2,19 @@
 
 海士町のオープンデータにチャットで話しかけられるアプリです。ランディングページから、合言葉なしでそのまま試せます。
 
+## 引き継ぎ状況（2026-08-26）
+
+**本番URLで今すぐ試せる状態ではありません。** 未解決分はGitHub Issuesに登録済みです。
+
+1. **本番のVercelプロジェクトが2つに分かれている。**（[Issue #2](https://github.com/Robo-Co-op/amasas-chat-demo/issues/2)）
+   `https://amasas-chat-demo.vercel.app`（Robo Co-op teamアカウント、このGitHubリポジトリと連携済み・pushで自動デプロイされる）と、
+   `https://amasas-chat-demo-main.vercel.app`（個人アカウント`dimdimlians-projects`、手動デプロイで固定・GitHub連携なし）が別プロジェクトとして存在します。
+   このリポジトリへの変更が反映されるのは前者だけです。どちらを本番にするか未確定です。
+2. **`amasas-chat-demo`（Robo Co-op team側）に有効な`GEMINI_API_KEY`が設定されていない。**（[Issue #3](https://github.com/Robo-Co-op/amasas-chat-demo/issues/3)）
+   個人アカウント側のプロジェクトには動くキーがある模様。チャットを実際に試せるのは今のところ個人アカウント側のURLだけです。
+
+また、`supabase/migrations/0001_create_amasas_schema.sql`は「共有Robo Co-op Supabase（`rzuvdnishrxosjkopcyp`）へ移行する」という内容ですが、`api/chat.js`・`api/feedback.js`が実際に読み書きしているのは別プロジェクト（`ugddjjnldavwrhfwtxwa`、下記「DBについて」参照）です。マイグレーションのテーブル名（`amasas.chat_sessions`等）とコードが書き込む先（`amasas_chat_feedback`）も一致していません。移行は書かれただけで、コード側は追随していないと見られます。DBを触る前に必ず両方を見比べてください。（[Issue #4](https://github.com/Robo-Co-op/amasas-chat-demo/issues/4)）
+
 ## 構成
 
 - `index.html` — ランディングページ + 入口画面 + チャットUI
@@ -20,7 +33,7 @@
 3. importすると自動でデプロイされ、URLが発行されます
 4. 以降は`main`ブランチへのpushで本番URLへ自動的に再デプロイされます。それ以外のブランチやPRはプレビューURLとして自動デプロイされます
 
-DB(Supabase)への接続情報はコード内に読み取り専用の設定で組み込まれているため、DB側の準備は不要です。
+DB(Supabase)への接続情報はコード内に組み込まれていますが、上記「引き継ぎ状況」のとおりコードとマイグレーションが指す先が一致していない疑いがあります。DBの準備が本当に不要かどうかは、触る前に要確認です。
 
 ## 補足
 
@@ -37,6 +50,19 @@ DB(Supabase)への接続情報はコード内に読み取り専用の設定で�
 5. 起動: `vercel dev`（既定で http://localhost:3000 ）
 
 `vercel dev`はローカルの`.env.local`を見ず、リンクしたVercelプロジェクトの「Development」環境変数をクラウドから直接読みます。`.env.example`は必要な変数の一覧としてのみ使ってください。
+
+## DBについて
+
+現在コードが接続しているSupabaseプロジェクトと、`supabase/migrations/`が想定しているプロジェクトが異なります。
+
+- **コードが実際に呼んでいる先**（`api/chat.js`・`api/feedback.js`に直接ハードコード）: `https://ugddjjnldavwrhfwtxwa.supabase.co`
+  - `rpc/amasas_query`・`rpc/{その他RPC}`・テーブル`amasas_chat_feedback`
+  - `amasas_query`はこのリポジトリのどこにも定義がありません。既存DB側に手動で作られたものと見られます
+- **マイグレーションが想定している先**: 共有Robo Co-op Supabase（`rzuvdnishrxosjkopcyp`）
+  - `amasas.chat_sessions` / `amasas.chat_messages` / `amasas.chat_feedback`（コードの`amasas_chat_feedback`とは名前が違う）
+  - マイグレーションのコメントに「以前は別Supabaseプロジェクトにamasas_chat_sessions/messages/feedbackとして記録していた」とあり、統合を意図して書かれたが、コード側は追随していない
+
+どちらを正とするか（統合を完了させる／マイグレーションを現状に合わせて書き直す）を決めてから着手してください。
 
 ## セキュリティ
 
