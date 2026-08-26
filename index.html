@@ -452,7 +452,6 @@
 
 <script>
 const S = {
-  pass: localStorage.getItem("amasas_pass") || "",
   role: localStorage.getItem("amasas_role") || "",
   name: localStorage.getItem("amasas_name") || "",
   session: localStorage.getItem("amasas_session") || crypto.randomUUID(),
@@ -539,29 +538,22 @@ function idleCheck() {
 setInterval(idleCheck, 60 * 1000);
 ["click", "keydown"].forEach(ev => document.addEventListener(ev, touchActivity));
 
-// 合言葉の入力欄は無いため、デモ用の合言葉はページ側で受け取って保持する。
-// x-passcodeヘッダーを付けずに /api/auth を叩くと払い出される。
-// serverConfigured … サーバーが払い出せたか / configured … 手元に合言葉があるか
+// 合言葉は無い。ここで取るのは検証用プルダウンの初期設定だけ
 async function bootstrap() {
   try {
     const r = await fetch("/api/auth", { method: "POST" });
     if (!r.ok) return null;
     const d = await r.json();
-    if (d.ok !== true) return null;
-    if (d.passcode) { S.pass = d.passcode; localStorage.setItem("amasas_pass", S.pass); }
-    d.serverConfigured = !!d.passcode;
-    d.configured = d.serverConfigured || !!S.pass;
-    return d;
+    return d.ok === true ? d : null;
   } catch { return null; }
 }
 
-let authInfo = null;
-const boot = bootstrap().then(d => { authInfo = d; return d; });
+const boot = bootstrap();
 
 // 前回の会話が生きていればチャットに戻す。そうでなければランディングから
 (function restore() {
   const last = Number(localStorage.getItem("amasas_last_active") || 0);
-  if (S.pass && last && Date.now() - last <= IDLE_LIMIT_MS) {
+  if (last && Date.now() - last <= IDLE_LIMIT_MS) {
     showChat(); touchActivity(); boot.then(d => setupLab(d));
   } else {
     showLanding();
@@ -573,18 +565,13 @@ async function startChat() {
   const err = $("e-err");
   const name = $("e-name").value.trim();
   if (!name) { err.textContent = "お名前（ニックネーム）を入れてください。"; $("e-name").focus(); return; }
-  btn.disabled = true; err.textContent = "準備しています…";
-  const auth = authInfo || await boot;
-  btn.disabled = false;
-  if (!auth) { err.textContent = "いま接続できませんでした。少し待ってもう一度お試しください。"; return; }
-  if (!auth.configured) { err.textContent = "ただいま準備中です。設定が整うまでお待ちください。"; return; }
   err.textContent = "";
   S.name = name; S.role = $("e-role").value;
   localStorage.setItem("amasas_name", S.name);
   localStorage.setItem("amasas_role", S.role);
   touchActivity();
   showChat();
-  setupLab(auth);
+  boot.then(d => setupLab(d));
   $("input").focus();
 }
 $("e-name").addEventListener("keydown", (e) => {
@@ -633,7 +620,7 @@ async function fbSend(btn) {
   const comment = box.querySelector("input").value.trim();
   const r = await fetch("/api/feedback", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-passcode": S.pass },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messageId: Number(mid), verdict, comment }),
   });
   box.querySelector(".done").textContent = r.ok ? "ありがとうございます！" : "送信に失敗しました";
@@ -653,7 +640,7 @@ async function send() {
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-passcode": S.pass },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: S.messages, sessionId: S.session, roleTag: S.role, nickname: S.name,
         ...(S.preview ? { model: S.model, dataLayer: S.layer } : {}),
@@ -662,16 +649,6 @@ async function send() {
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       thinking.remove();
-      if (r.status === 401) {
-        // 合言葉が回転した場合。払い出しをやり直して一度だけ自動復帰する
-        const auth = await bootstrap();
-        authInfo = auth;
-        if (!auth) logout("いま接続できませんでした。少し待ってもう一度お試しください。");
-        else if (!auth.serverConfigured) logout("ただいま準備中です。設定が整うまでお待ちください。");
-        else addAssistant("接続を作り直しました。もう一度送信してください。", null, 0);
-        $("send").disabled = false;
-        return;
-      }
       addAssistant("エラー: " + (data.error || r.status), null, 0);
     } else {
       // SSE: 進行状況(status)を表示しながらdoneで回答を受け取る

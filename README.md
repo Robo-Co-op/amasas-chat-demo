@@ -1,20 +1,19 @@
 # AMASAS Chat Demo
 
-海士町のオープンデータにチャットで話しかけられるアプリです。合言葉を入力すると使えます。
+海士町のオープンデータにチャットで話しかけられるアプリです。ランディングページから、合言葉なしでそのまま試せます。
 
 ## 構成
 
-- `index.html` — チャットUI
+- `index.html` — ランディングページ + 入口画面 + チャットUI
 - `api/chat.js` — Gemini(function calling) + Supabase読み取り専用RPCで回答を生成
 - `api/feedback.js` — 回答への評価コメントを記録（`SUPABASE_SERVICE_KEY`未設定時はスキップ）
-- `api/auth.js` — 合言葉の検証
+- `api/auth.js` — 画面の初期設定（Preview判定と既定モデル・データ層）を返すだけ
 
 ## セットアップ（Vercelにデプロイ）
 
 1. https://vercel.com → Add New → Project → GitHubからこのリポジトリをimport
 2. 環境変数を設定（Project Settings → Environment Variables）。**ProductionとPreview両方**に設定してください:
    - `GEMINI_API_KEY`: 自分のキー（https://aistudio.google.com/apikey で取得）
-   - `APP_PASSCODE`: 任意の値
    - `GEMINI_MODEL`: `gemini-3.1-flash-lite`
    - `DATA_LAYER`: `l4`
    - `SUPABASE_SERVICE_KEY`: 省略可（未設定でも会話ログの記録がスキップされるだけでチャット自体は動く）
@@ -42,4 +41,4 @@ DB(Supabase)への接続情報はコード内に読み取り専用の設定で�
 ## セキュリティ
 
 - DBへのアクセスは読み取り専用RPC（SELECT以外拒否・5秒・500行上限・RLS）
-- 合言葉はAPI側で検証。外れるとGemini APIは呼ばれません
+- 合言葉は廃止。`/api/chat`は誰でも呼べるため、必要になったらVercel側でレート制限やBot対策をかけてください

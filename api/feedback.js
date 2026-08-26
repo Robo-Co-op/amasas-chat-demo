@@ -3,8 +3,6 @@ const SUPABASE_URL = "https://ugddjjnldavwrhfwtxwa.supabase.co";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if ((req.headers["x-passcode"] || "") !== process.env.APP_PASSCODE)
-    return res.status(401).json({ error: "合言葉が違います" });
 
   const { messageId, verdict, comment } = req.body || {};
   if (!messageId || !["ok", "ng"].includes(verdict))

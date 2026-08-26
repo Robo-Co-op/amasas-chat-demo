@@ -383,8 +383,6 @@ async function callGemini(model, sysText, contents, useTools, onStatus) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if ((req.headers["x-passcode"] || "") !== process.env.APP_PASSCODE)
-    return res.status(401).json({ error: "合言葉が違います" });
 
   const { messages, sessionId, roleTag, nickname, model: reqModel, dataLayer: reqLayer } = req.body || {};
   if (!Array.isArray(messages) || !messages.length || !sessionId)
