@@ -452,8 +452,9 @@
 
 <script>
 const S = {
-  role: localStorage.getItem("amasas_role") || "",
-  name: localStorage.getItem("amasas_name") || "",
+  // 名前とお立場は持ち越さない。開くたびに空から（下のclearEnterも参照）
+  role: "",
+  name: "",
   session: localStorage.getItem("amasas_session") || crypto.randomUUID(),
   messages: [],
   preview: false,
@@ -479,7 +480,7 @@ const enterHTML = (slot) => `
       <div class="enter-row">
         <label class="vh" for="e-name-${slot}">お名前 ／ ニックネーム</label>
         <input class="e-name" id="e-name-${slot}" type="text" placeholder="お名前（ニックネーム）"
-               autocomplete="nickname" enterkeyhint="go" />
+               autocomplete="off" enterkeyhint="go" />
         <label class="vh" for="e-role-${slot}">お立場（任意）</label>
         <select class="e-role" id="e-role-${slot}">
           ${ROLES.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}
@@ -492,12 +493,14 @@ const enterHTML = (slot) => `
 document.querySelectorAll("#landing [data-enter]").forEach((slot) => {
   slot.innerHTML = enterHTML(slot.dataset.enter);
 });
-// 前回の入力を復元（2か所とも同じ値で始める）
-function fillEnter() {
-  document.querySelectorAll("#landing .e-name").forEach((x) => { x.value = S.name; });
-  document.querySelectorAll("#landing .e-role").forEach((x) => { x.value = S.role; });
+// 入口フォームは常に空で始める。ブラウザが再読込時に勝手に中身を戻すので、
+// 明示的に空へ戻す（pageshowは戻し終わった後に発火する。戻る操作でも効く）
+function clearEnter() {
+  document.querySelectorAll("#landing .e-name").forEach((x) => { x.value = ""; });
+  document.querySelectorAll("#landing .e-role").forEach((x) => { x.value = ""; });
 }
-fillEnter();
+clearEnter();
+window.addEventListener("pageshow", clearEnter);
 
 // 上下どちらに打っても他方に映す。片方だけ埋まって迷子になるのを防ぐ
 $("landing").addEventListener("input", (e) => {
@@ -594,6 +597,8 @@ function logout(msg) {
   localStorage.setItem("amasas_session", S.session);
   $("app").innerHTML = "";
   landingScroll = 0;
+  S.name = ""; S.role = "";
+  clearEnter();   // 入口にもどったら名前も消す。次に使う人に前の人の名前を見せない
   showLanding();
   if (msg) {
     // 入口画面が無くなったので、上のフォームの場所で理由を伝える
@@ -633,6 +638,8 @@ const boot = bootstrap();
 // 会話の中身(S.messages)は保存していないので、チャットに復帰させても空の画面が
 // 出るだけで、使い方を飛ばす副作用しかなかった
 localStorage.removeItem("amasas_last_active");
+// 以前のバージョンが保存した名前・お立場が残っていれば、ここで消す
+["amasas_name", "amasas_role"].forEach((k) => localStorage.removeItem(k));
 showLanding();
 
 // 引数は押されたボタン/入力欄。上下どちらの行から始めても同じ挙動
@@ -648,8 +655,6 @@ async function startChat(from) {
   clearEnterErr();
   landingScroll = $("landing").scrollTop;   // 入口にもどったとき同じ位置に返す
   S.name = name; S.role = slot.querySelector(".e-role").value;
-  localStorage.setItem("amasas_name", S.name);
-  localStorage.setItem("amasas_role", S.role);
   showChat(true);
   touchActivity();   // in-chat になった後で押す。順番を逆にすると印が付かない
   boot.then(d => setupLab(d));
