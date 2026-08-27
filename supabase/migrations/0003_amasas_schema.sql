@@ -1528,6 +1528,26 @@ create policy "amasas_read_only" on "amasas"."data_cards" for select to "anon", 
 create policy "amasas_read_only" on "amasas"."reference_queries" for select to "anon", "authenticated" using (true);
 create policy "ai_read_only" on "ai"."catalog" for select to "anon", "authenticated" using (true);
 
+-- knowledge tables are RLS-off in the source, but Supabase auto-enables RLS on
+-- new tables; make it explicit and add read policies so anon can read this
+-- (open) data — otherwise RLS-on with no policy silently returns 0 rows.
+alter table "knowledge"."involvement_paths" enable row level security;
+alter table "knowledge"."map_assets"         enable row level security;
+alter table "knowledge"."measures"           enable row level security;
+alter table "knowledge"."reading_playbook"   enable row level security;
+alter table "knowledge"."source_registry"    enable row level security;
+alter table "knowledge"."strategy_frames"    enable row level security;
+alter table "knowledge"."strategy_pillars"   enable row level security;
+alter table "knowledge"."town_facts"         enable row level security;
+create policy "knowledge_read_only" on "knowledge"."involvement_paths" for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."map_assets"         for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."measures"           for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."reading_playbook"   for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."source_registry"    for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."strategy_frames"    for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."strategy_pillars"   for select to "anon", "authenticated" using (true);
+create policy "knowledge_read_only" on "knowledge"."town_facts"         for select to "anon", "authenticated" using (true);
+
 grant usage on schema "amasas", "ai", "knowledge" to anon, authenticated;
 grant select on all tables in schema "amasas" to anon, authenticated;
 grant select on all tables in schema "ai" to anon, authenticated;

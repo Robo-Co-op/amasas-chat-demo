@@ -4,11 +4,11 @@ const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
 
 // データ層の切替: amasas(現行・L1.5直接) | ai(共有層L1経由) | l4(ai層+knowledge文脈注入)。A/B比較用
 const DATA_LAYER = ["ai", "l4"].includes(process.env.DATA_LAYER) ? process.env.DATA_LAYER : "amasas";
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 
 // Preview環境限定: リクエスト単位でモデル・データ層を切替可能(検証用)。本番では常にenv既定が使われる
 const IS_PREVIEW = process.env.VERCEL_ENV !== "production";
-const ALLOWED_MODELS = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+const ALLOWED_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.1-flash-lite"];
 const ALLOWED_LAYERS = ["amasas", "ai", "l4"];
 
 const SYSTEM_PROMPT_TEMPLATE = `あなたは「AMASAS」の対話窓口です。海士町のオープンデータそのものに話しかけるように、誰でも町の現状を数字で確かめられるようにします。相手は町職員・関係人口・島留学生など様々です。
