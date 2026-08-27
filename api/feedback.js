@@ -1,5 +1,5 @@
 // 各回答への可/不可+一言修正を記録(計画書Step2の収穫形式)
-const SUPABASE_URL = "https://ugddjjnldavwrhfwtxwa.supabase.co";
+const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
