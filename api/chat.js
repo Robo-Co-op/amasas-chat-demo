@@ -483,6 +483,8 @@ export default async function handler(req, res) {
     { id: sessionId, role_tag: roleTag || null, nickname: nickname || null },
   ]);
   const turn = messages.length;
+  // nickname/role_tagはamasas_chat_sessions側にもあるが、会話ログ単体を見て
+  // 誰の発言か分かるよう、各メッセージ行にもそのまま複製して残す
   await logToDb("amasas_chat_messages", [
     {
       session_id: sessionId,
@@ -491,10 +493,22 @@ export default async function handler(req, res) {
       content: messages[messages.length - 1].content,
       data_layer: layer,
       model,
+      nickname: nickname || null,
+      role_tag: roleTag || null,
     },
   ]);
   const saved = await logToDb("amasas_chat_messages", [
-    { session_id: sessionId, turn, role: "assistant", content: answer, sql_log: sqlLog, data_layer: layer, model },
+    {
+      session_id: sessionId,
+      turn,
+      role: "assistant",
+      content: answer,
+      sql_log: sqlLog,
+      data_layer: layer,
+      model,
+      nickname: nickname || null,
+      role_tag: roleTag || null,
+    },
   ]);
   if (saved && saved[0]) messageId = saved[0].id;
 
