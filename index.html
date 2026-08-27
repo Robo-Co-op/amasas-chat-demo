@@ -213,8 +213,8 @@
 
   /* 入口フォーム。旧「AIと話してみる」ボタンと同じ2か所（上と、CTAの直後）に、
      お名前・お立場・開始ボタンを1行で置く。枠と字は旧入口画面の値のまま */
-  #landing .start { display:flex; flex-direction:column; gap:10px; align-items:stretch; max-width:600px; }
-  #landing .enter-row { display:flex; gap:8px; align-items:stretch; }
+  #landing .start { display:flex; flex-direction:column; gap:10px; align-items:stretch; max-width:820px; }
+  #landing .enter-row { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
   .start-btn {
     font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
     background:var(--accent); color:var(--btn-fg); border:none; border-radius:4px;
@@ -239,8 +239,9 @@
   /* プレースホルダがラベルの役目を負うので、既定の薄い灰(3.5:1)では足りない。
      二次テキストの色を明示して4.5:1以上を確保する（opacityはFirefox対策） */
   #landing .enter-row input::placeholder { color:var(--ink-2); opacity:1; }
-  #landing .enter-row .e-name { flex:1 1 auto; min-width:0; }
-  #landing .enter-row .e-role { flex:0 1 auto; max-width:11em; }
+  #landing .enter-row .e-name { flex:1 1 11em; min-width:0; }
+  /* 閉じているときも「あなたと海士町との関係（任意）」が切れない幅 */
+  #landing .enter-row .e-role { flex:1 1 18em; min-width:0; max-width:25em; }
   /* 開始ボタンは行に馴染む小ささに。入力欄と同じ高さで揃える */
   #landing .enter-row .start-btn { flex:0 0 auto; padding:11px 22px; font-size:14.5px; }
   #landing .entry-err { margin:0; font-size:12.5px; color:var(--accent); }
@@ -469,19 +470,26 @@ function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
 // ---- 入口フォーム。ランディング内の2か所に同じ型から流し込む ----
 // 片方だけ直して食い違うことがないよう、markupの出どころは常にここ1つ
+const RELATION_LABEL = "あなたと海士町との関係（任意）";
 const ROLES = [
-  ["", "お立場（任意）"],
-  ["町", "町（役場・町民）"],
-  ["PJT", "プロジェクトチーム"],
-  ["関係人口", "関係人口・島留学生"],
-  ["その他", "その他"],
+  ["", RELATION_LABEL],
+  ["not_visited", "まだ行ったことはない・情報収集中"],
+  ["visited", "海士町に行ったことがある"],
+  ["ambassador", "海士町オフィシャルアンバサダー"],
+  ["island_study", "島留学・大人の島留学の参加者・卒業生"],
+  ["student", "町内の小中高生"],
+  ["resident", "町内在住・町内勤務"],
+  ["townhall", "役場・関係機関"],
+  ["corporate", "企業・団体として連携を検討中"],
+  ["project", "プロジェクト・運営関係者"],
+  ["other", "その他"],
 ];
 const enterHTML = (slot) => `
       <div class="enter-row">
         <label class="vh" for="e-name-${slot}">お名前 ／ ニックネーム</label>
         <input class="e-name" id="e-name-${slot}" type="text" placeholder="お名前（ニックネーム）"
                autocomplete="off" enterkeyhint="go" />
-        <label class="vh" for="e-role-${slot}">お立場（任意）</label>
+        <label class="vh" for="e-role-${slot}">${RELATION_LABEL}</label>
         <select class="e-role" id="e-role-${slot}">
           ${ROLES.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}
         </select>
