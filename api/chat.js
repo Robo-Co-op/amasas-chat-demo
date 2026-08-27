@@ -1,7 +1,6 @@
 // 対話できるAMASAS: Gemini function calling + Supabase読み取り専用RPC (SSEストリーミング)
-const SUPABASE_URL = "https://ugddjjnldavwrhfwtxwa.supabase.co";
-const ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnZGRqam5sZGF2d3JoZnd0eHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0MzExODMsImV4cCI6MjA5OTAwNzE4M30.6QjQLfc4wmJeP7sh1u6jF4yna6HtdvIWvDhORTtrSGc";
+const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
+const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
 
 // データ層の切替: amasas(現行・L1.5直接) | ai(共有層L1経由) | l4(ai層+knowledge文脈注入)。A/B比較用
 const DATA_LAYER = ["ai", "l4"].includes(process.env.DATA_LAYER) ? process.env.DATA_LAYER : "amasas";

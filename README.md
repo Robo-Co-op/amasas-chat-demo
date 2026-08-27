@@ -13,7 +13,7 @@
 2. **`amasas-chat-demo`（Robo Co-op team側）に有効な`GEMINI_API_KEY`が設定されていない。**（[Issue #3](https://github.com/Robo-Co-op/amasas-chat-demo/issues/3)）
    個人アカウント側のプロジェクトには動くキーがある模様。チャットを実際に試せるのは今のところ個人アカウント側のURLだけです。
 
-また、`supabase/migrations/0001_create_amasas_schema.sql`は「共有Robo Co-op Supabase（`rzuvdnishrxosjkopcyp`）へ移行する」という内容ですが、`api/chat.js`・`api/feedback.js`が実際に読み書きしているのは別プロジェクト（`ugddjjnldavwrhfwtxwa`、下記「DBについて」参照）です。マイグレーションのテーブル名（`amasas.chat_sessions`等）とコードが書き込む先（`amasas_chat_feedback`）も一致していません。移行は書かれただけで、コード側は追随していないと見られます。DBを触る前に必ず両方を見比べてください。（[Issue #4](https://github.com/Robo-Co-op/amasas-chat-demo/issues/4)）
+また、DBを新プロジェクト`jcokpgmqmtxefzjjenrx`（このリポジトリ側でアクセス可能）に移行し、リポジトリだけで再現できる状態にしました（[Issue #4](https://github.com/Robo-Co-op/amasas-chat-demo/issues/4)）。`api/chat.js`・`api/feedback.js`の接続先を新プロジェクトに統一し、旧DBに手動作成されていた読み取り専用RPC（`amasas_query`/`ai_query`）とデータ層（`amasas`/`ai`/`knowledge`：50テーブル・14ビュー・15,349行）を`supabase/migrations/`に取り込みました。**残作業**は、これらのマイグレーションを新プロジェクトに流し込み（下記「DBについて」）、`GEMINI_API_KEY`をVercelに設定するだけです。
 
 ## 構成
 
@@ -33,7 +33,7 @@
 3. importすると自動でデプロイされ、URLが発行されます
 4. 以降は`main`ブランチへのpushで本番URLへ自動的に再デプロイされます。それ以外のブランチやPRはプレビューURLとして自動デプロイされます
 
-DB(Supabase)への接続情報はコード内に組み込まれていますが、上記「引き継ぎ状況」のとおりコードとマイグレーションが指す先が一致していない疑いがあります。DBの準備が本当に不要かどうかは、触る前に要確認です。
+DB(Supabase)への接続情報はコード内に組み込まれており、現在は新プロジェクト`jcokpgmqmtxefzjjenrx`を指します。ただし新プロジェクトは空のため、チャットを動かすには下記「DBについて」の移行作業（RPCとデータ層の取り込み）が必要です。
 
 ## 補足
 
@@ -53,16 +53,29 @@ DB(Supabase)への接続情報はコード内に組み込まれていますが�
 
 ## DBについて
 
-現在コードが接続しているSupabaseプロジェクトと、`supabase/migrations/`が想定しているプロジェクトが異なります。
+コードが読み書きするSupabaseは新プロジェクト`jcokpgmqmtxefzjjenrx`（このリポジトリ側で管理・アクセス可能）に統一済みです。`api/chat.js`・`api/feedback.js`の接続先とキーはこのプロジェクトを指します。
 
-- **コードが実際に呼んでいる先**（`api/chat.js`・`api/feedback.js`に直接ハードコード）: `https://ugddjjnldavwrhfwtxwa.supabase.co`
-  - `rpc/amasas_query`・`rpc/{その他RPC}`・テーブル`amasas_chat_feedback`
-  - `amasas_query`はこのリポジトリのどこにも定義がありません。既存DB側に手動で作られたものと見られます
-- **マイグレーションが想定している先**: 共有Robo Co-op Supabase（`rzuvdnishrxosjkopcyp`）
-  - `amasas.chat_sessions` / `amasas.chat_messages` / `amasas.chat_feedback`（コードの`amasas_chat_feedback`とは名前が違う）
-  - マイグレーションのコメントに「以前は別Supabaseプロジェクトにamasas_chat_sessions/messages/feedbackとして記録していた」とあり、統合を意図して書かれたが、コード側は追随していない
+DBの中身は`supabase/migrations/`に全て取り込み済みで、リポジトリだけで新しいSupabaseに再現できます:
 
-どちらを正とするか（統合を完了させる／マイグレーションを現状に合わせて書き直す）を決めてから着手してください。
+- `0001_chat_logging.sql` — 会話ログ（`amasas_chat_sessions` / `amasas_chat_messages` / `amasas_chat_feedback`。コードの書き込みと一致）
+- `0002_read_only_rpc.sql` — 読み取り専用RPC `amasas_query` / `ai_query`（旧DBから抽出した本物の定義。SECURITY INVOKERで、`anon`ロールの権限が実際の境界）
+- `0003_amasas_schema.sql` — 3スキーマ・50テーブル・14ビュー・RLS・42ポリシー・grant
+- `0004_amasas_seed.sql` — データ本体 15,349行（`jsonb_populate_recordset`で型安全に投入）＋外部キー
+
+### 新プロジェクトへの流し込み
+
+`0004`が7MBあり、SQL EditorよりCLI/`psql`が確実です。新プロジェクトの接続文字列（Settings → Database → Connection string）を使い、番号順に適用してください:
+
+```bash
+DB_URL="postgresql://postgres:[パスワード]@db.jcokpgmqmtxefzjjenrx.supabase.co:5432/postgres"
+for f in supabase/migrations/000*.sql; do
+  echo "== $f =="; psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+done
+```
+
+投入後、Vercelの`SUPABASE_SERVICE_KEY`を新プロジェクトのservice_roleキーに設定すれば会話ログの記録も動きます。
+
+> 旧DB`ugddjjnldavwrhfwtxwa`のservice_roleキーは移行作業で一時的に使用しました。**露出したので再生成（revoke）してください。** 通常運用では不要です（読み取りは公開anonキー経由）。
 
 ## セキュリティ
 
