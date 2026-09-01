@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ログイン | AMASAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<div class="center-page">
+  <div class="card authcard">
+    <div class="brand">AMASAS<small>Admin Console</small></div>
+    <p class="lede">海士町オープンデータ・チャットの管理画面です。スタッフ用アカウントでサインインしてください。</p>
+    <div id="msg"></div>
+    <form id="form">
+      <div class="field">
+        <label for="email">メールアドレス</label>
+        <input id="email" type="email" autocomplete="username" required />
+      </div>
+      <div class="field">
+        <label for="password">パスワード</label>
+        <input id="password" type="password" autocomplete="current-password" required />
+      </div>
+      <button class="btn primary" type="submit" id="submit" style="width:100%;justify-content:center;">サインイン</button>
+    </form>
+    <p style="margin-top:14px;">
+      <a href="#" id="forgot" style="font-size:12px;">パスワードをお忘れですか？</a>
+    </p>
+  </div>
+</div>
+<script src="shared/admin.js"></script>
+<script>
+(function () {
+  // Already signed in? Skip straight past login.
+  const existing = Admin.getSession();
+  if (existing) {
+    const params = new URLSearchParams(location.search);
+    location.replace(params.get("next") || "index.html");
+    return;
+  }
+
+  const form = document.getElementById("form");
+  const msg = document.getElementById("msg");
+  const submitBtn = document.getElementById("submit");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.innerHTML = "";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "サインイン中…";
+    try {
+      await Admin.signIn(document.getElementById("email").value.trim(), document.getElementById("password").value);
+      const params = new URLSearchParams(location.search);
+      location.href = params.get("next") || "index.html";
+    } catch (err) {
+      msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "サインイン";
+    }
+  });
+
+  document.getElementById("forgot").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    if (!email) { msg.innerHTML = `<div class="errbox">先にメールアドレスを入力してください</div>`; return; }
+    await Admin.requestPasswordReset(email);
+    msg.innerHTML = `<div class="okbox">登録されているアドレスであれば、パスワード再設定メールを送信しました。</div>`;
+  });
+})();
+</script>
+</body>
+</html>

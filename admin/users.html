@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>管理者 | AMASAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/admin.js"></script>
+<script>
+const ROLES = ["owner", "admin", "editor", "viewer"];
+const CAPS = [
+  ["ダッシュボード・会話ログ・フィードバックの閲覧", true, true, true, true],
+  ["ナレッジベースの閲覧", true, true, true, true],
+  ["ナレッジベースの編集", true, true, true, false],
+  ["管理者の招待・ロール変更・無効化", true, "※", false, false],
+  ["設定（メンテナンスモード等）の変更", true, true, false, false],
+  ["監査ログの閲覧", true, true, false, false],
+];
+
+(async function () {
+  const ctx = await Admin.renderShell({ page: "users", title: "管理者", sub: "この管理画面にアクセスできるスタッフアカウントとロール" });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+  const canManage = Admin.can(ctx.role, "users");
+
+  content.innerHTML = `
+    <div id="list"><div class="loading">読み込み中…</div></div>
+
+    ${canManage ? `
+    <h2 class="section">新しい管理者を招待</h2>
+    <div class="card">
+      <form id="invite-form" class="formgrid">
+        <div class="field"><label>メールアドレス *</label><input type="email" id="inv-email" required /></div>
+        <div class="field"><label>表示名</label><input type="text" id="inv-name" /></div>
+        <div class="field"><label>ロール *</label>
+          <select id="inv-role">
+            ${ROLES.filter((r) => !(ctx.role === "admin" && (r === "owner" || r === "admin"))).map((r) => `<option value="${r}">${r}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" style="align-self:end;"><button class="btn primary" type="submit">招待メールを送信</button></div>
+      </form>
+      <div id="inv-msg"></div>
+      <p style="font-size:12px;color:var(--ink-2);margin-top:4px;">Supabase Auth の招待メール機能を使います。届かない場合は Supabase ダッシュボードから直接ユーザーを作成してください。</p>
+    </div>
+    ` : ""}
+
+    <h2 class="section">ロールの権限</h2>
+    <div class="tablewrap"><table class="dtable">
+      <thead><tr><th>できること</th><th>owner</th><th>admin</th><th>editor</th><th>viewer</th></tr></thead>
+      <tbody>${CAPS.map((row) => `<tr><td>${Admin.esc(row[0])}</td>${row.slice(1).map((v) => `<td>${v === true ? "✓" : v === "※" ? "✓（owner以外は編集不可）" : "—"}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>
+  `;
+
+  await loadList();
+
+  if (canManage) {
+    document.getElementById("invite-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("inv-msg");
+      msg.innerHTML = "";
+      const email = document.getElementById("inv-email").value.trim();
+      const displayName = document.getElementById("inv-name").value.trim();
+      const role = document.getElementById("inv-role").value;
+      try {
+        const s = await Admin.ensureToken();
+        const r = await fetch("/api/admin/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
+          body: JSON.stringify({ email, displayName, role }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "招待に失敗しました");
+        Admin.toast("招待メールを送信しました", "ok");
+        document.getElementById("invite-form").reset();
+        await loadList();
+      } catch (err) {
+        msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
+      }
+    });
+  }
+
+  async function loadList() {
+    const list = document.getElementById("list");
+    list.innerHTML = `<div class="loading">読み込み中…</div>`;
+    try {
+      const users = await Admin.rpc("admin_list_users");
+      list.innerHTML = `
+        <div class="tablewrap"><table class="dtable">
+          <thead><tr><th>メール</th><th>表示名</th><th>ロール</th><th>状態</th><th>最終ログイン</th><th>登録日</th>${canManage ? "<th></th>" : ""}</tr></thead>
+          <tbody id="users-tbody"></tbody>
+        </table></div>
+      `;
+      const tbody = document.getElementById("users-tbody");
+      users.forEach((u) => {
+        const tr = document.createElement("tr");
+        const lockedForCaller = ctx.role === "admin" && (u.role === "owner" || u.role === "admin") && u.id !== ctx.profile.id;
+        const roleCell = canManage && !lockedForCaller
+          ? `<select data-id="${u.id}" class="role-select">${ROLES.map((r) => `<option value="${r}" ${r === u.role ? "selected" : ""}>${r}</option>`).join("")}</select>`
+          : `<span class="badge role-${Admin.esc(u.role)}">${Admin.esc(u.role)}</span>`;
+        tr.innerHTML = `
+          <td>${Admin.esc(u.email)}</td>
+          <td>${Admin.esc(u.display_name || "—")}</td>
+          <td>${roleCell}</td>
+          <td>${u.is_active ? '<span class="badge ok">有効</span>' : '<span class="badge ng">無効</span>'}</td>
+          <td>${Admin.fmtDate(u.last_login_at)}</td>
+          <td>${Admin.fmtDate(u.created_at)}</td>
+          ${canManage && !lockedForCaller ? `<td><button class="btn ghost sm" data-act="toggle" data-id="${u.id}" data-active="${u.is_active}" data-role="${u.role}">${u.is_active ? "無効化" : "有効化"}</button></td>` : canManage ? "<td></td>" : ""}
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (canManage) {
+        tbody.querySelectorAll(".role-select").forEach((sel) => {
+          sel.addEventListener("change", async () => {
+            const u = users.find((x) => x.id === sel.dataset.id);
+            try {
+              await Admin.rpc("admin_set_user", { target_id: u.id, new_role: sel.value, new_active: u.is_active });
+              Admin.toast("ロールを更新しました", "ok");
+              await loadList();
+            } catch (err) {
+              Admin.toast(err.message, "err");
+              sel.value = u.role;
+            }
+          });
+        });
+        tbody.querySelectorAll('button[data-act="toggle"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const nextActive = btn.dataset.active !== "true";
+            const ok = await Admin.confirmModal({
+              title: nextActive ? "このアカウントを有効化しますか？" : "このアカウントを無効化しますか？",
+              body: `<p style="font-size:13px;color:var(--ink-2);">無効化すると、このユーザーは管理画面にログインできなくなります（アカウント自体は削除されません）。</p>`,
+              confirmLabel: nextActive ? "有効化する" : "無効化する",
+              danger: !nextActive,
+            });
+            if (!ok) return;
+            try {
+              await Admin.rpc("admin_set_user", { target_id: btn.dataset.id, new_role: btn.dataset.role, new_active: nextActive });
+              Admin.toast("更新しました", "ok");
+              await loadList();
+            } catch (err) {
+              Admin.toast(err.message, "err");
+            }
+          });
+        });
+      }
+    } catch (err) {
+      list.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+    }
+  }
+})();
+</script>
+</body>
+</html>

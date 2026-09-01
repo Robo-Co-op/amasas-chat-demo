@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>設定 | AMASAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/admin.js"></script>
+<script>
+(async function () {
+  const ctx = await Admin.renderShell({ page: "settings", title: "設定", sub: "公開チャットの稼働設定と、現在の実行時構成（診断用）" });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+
+  content.innerHTML = `
+    <h2 class="section" style="margin-top:0;">メンテナンスモード</h2>
+    <div class="card" id="maint-card"><div class="loading">読み込み中…</div></div>
+
+    <h2 class="section">実行時構成（診断用・読み取り専用）</h2>
+    <div class="card" id="health-card"><div class="loading">読み込み中…</div></div>
+    <p style="font-size:12px;color:var(--ink-2);margin-top:8px;">
+      Gemini / データ層のモデル値は Vercel の環境変数（Project Settings → Environment Variables）で設定します。この画面からは変更できません。
+    </p>
+  `;
+
+  await loadMaintenance();
+  await loadHealth();
+
+  async function loadMaintenance() {
+    const card = document.getElementById("maint-card");
+    try {
+      const settings = await Admin.rpc("admin_list_settings");
+      const row = settings.find((s) => s.key === "maintenance_mode");
+      const v = (row && row.value) || { enabled: false, message: "" };
+      card.innerHTML = `
+        <div class="field" style="display:flex;align-items:center;gap:10px;max-width:240px;">
+          <input type="checkbox" id="maint-enabled" ${v.enabled ? "checked" : ""} style="width:auto;" />
+          <label style="margin:0;">メンテナンスモードを有効にする</label>
+        </div>
+        <div class="field">
+          <label>公開チャットに表示するメッセージ（任意）</label>
+          <textarea id="maint-message" placeholder="ただいまメンテナンス中です。しばらくしてから再度お試しください。">${Admin.esc(v.message || "")}</textarea>
+        </div>
+        <button class="btn primary" id="maint-save">保存</button>
+        <span id="maint-msg" style="margin-left:10px;font-size:12px;color:var(--ink-2);"></span>
+      `;
+      document.getElementById("maint-save").addEventListener("click", async () => {
+        const enabled = document.getElementById("maint-enabled").checked;
+        const message = document.getElementById("maint-message").value.trim();
+        try {
+          await Admin.rpc("admin_set_setting", { setting_key: "maintenance_mode", setting_value: { enabled, message } });
+          Admin.toast("保存しました", "ok");
+        } catch (err) {
+          Admin.toast(err.message, "err");
+        }
+      });
+    } catch (err) {
+      card.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+    }
+  }
+
+  async function loadHealth() {
+    const card = document.getElementById("health-card");
+    try {
+      const s = await Admin.ensureToken();
+      const r = await fetch("/api/admin/health", { headers: { Authorization: `Bearer ${s.access_token}` } });
+      if (!r.ok) throw new Error("取得に失敗しました");
+      const h = await r.json();
+      const chip = (ok, label) => `<span class="badge ${ok ? "ok" : "ng"}">${ok ? "✓" : "✕"} ${Admin.esc(label)}</span>`;
+      card.innerHTML = `
+        <div class="formgrid">
+          <div><label>Vercel環境</label>${Admin.esc(h.vercelEnv)}</div>
+          <div><label>Gemini モデル</label><span class="mono">${Admin.esc(h.geminiModel)}</span></div>
+          <div><label>混雑時フォールバック</label><span class="mono">${Admin.esc(h.geminiFallbackModel)}</span></div>
+          <div><label>データ層既定</label><span class="mono">${Admin.esc(h.dataLayer)}</span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+          ${chip(h.geminiKeyConfigured, "GEMINI_API_KEY 設定済み")}
+          ${chip(h.serviceKeyConfigured, "SUPABASE_SERVICE_KEY 設定済み")}
+          ${chip(h.dbReachable, "Supabase 読み取り疎通")}
+        </div>
+      `;
+    } catch (err) {
+      card.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+    }
+  }
+})();
+</script>
+</body>
+</html>

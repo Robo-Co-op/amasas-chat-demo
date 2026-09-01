@@ -340,6 +340,27 @@ async function logToDb(path, rows) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 管理画面の「設定」からON/OFFできるメンテナンスモード。取得失敗時は
+// 常にfalse扱い(fail open) — DBの一時的な不調が公開チャットを止めないように
+const maintenanceCache = { value: null, ts: 0 };
+async function getMaintenanceStatus() {
+  if (maintenanceCache.value && Date.now() - maintenanceCache.ts < 30 * 1000) return maintenanceCache.value;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/amasas_maintenance_status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+      body: "{}",
+    });
+    if (!r.ok) return { enabled: false };
+    const value = await r.json();
+    maintenanceCache.value = value;
+    maintenanceCache.ts = Date.now();
+    return value;
+  } catch {
+    return { enabled: false };
+  }
+}
+
 async function callGeminiOnce(model, sysText, contents, useTools) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
   const body = {
@@ -386,6 +407,13 @@ export default async function handler(req, res) {
   const { messages, sessionId, roleTag, nickname, model: reqModel, dataLayer: reqLayer } = req.body || {};
   if (!Array.isArray(messages) || !messages.length || !sessionId)
     return res.status(400).json({ error: "bad request" });
+
+  const maintenance = await getMaintenanceStatus();
+  if (maintenance && maintenance.enabled) {
+    return res.status(503).json({
+      error: maintenance.message || "ただいまメンテナンス中です。しばらくしてから再度お試しください。",
+    });
+  }
 
   // Preview環境のみ、ホワイトリスト内の値に限りリクエスト側の指定を採用(検証用)
   const model = IS_PREVIEW && ALLOWED_MODELS.includes(reqModel) ? reqModel : DEFAULT_MODEL;
