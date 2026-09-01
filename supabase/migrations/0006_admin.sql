@@ -248,7 +248,10 @@ security definer
 set search_path = "admin", pg_temp
 as $$
 begin
-  if "admin"."current_role"() not in ('owner', 'admin') then
+  -- NOTE: current_role() is NULL for non-admins, and `NULL not in (...)` is
+  -- NULL (not TRUE) in SQL — an `is null` check is required or this silently
+  -- admits unauthenticated callers.
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   return coalesce(
@@ -343,7 +346,7 @@ declare
   set_clause text;
   result jsonb;
 begin
-  if "admin"."current_role"() not in ('owner', 'admin', 'editor') then
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin', 'editor') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -388,7 +391,7 @@ declare
   pk_col text;
   affected int;
 begin
-  if "admin"."current_role"() not in ('owner', 'admin', 'editor') then
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin', 'editor') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -421,7 +424,7 @@ security definer
 set search_path = "admin", pg_temp
 as $$
 begin
-  if "admin"."current_role"() not in ('owner', 'admin') then
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   return coalesce(
@@ -440,7 +443,7 @@ as $$
 declare
   result jsonb;
 begin
-  if "admin"."current_role"() not in ('owner', 'admin') then
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   insert into "admin"."admin_settings" (key, value) values (setting_key, setting_value)
@@ -458,7 +461,7 @@ security definer
 set search_path = "admin", pg_temp
 as $$
 begin
-  if "admin"."current_role"() not in ('owner', 'admin') then
+  if "admin"."current_role"() is null or "admin"."current_role"() not in ('owner', 'admin') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   return coalesce(
