@@ -187,6 +187,50 @@ const Admin = (() => {
     return (n ?? 0).toLocaleString(locale);
   }
 
+  // Small hand-rolled inline-SVG line chart -- no charting library, matches
+  // this codebase's zero-client-dependency convention. `series` is an array
+  // of {name, color, values}; `labels` is the shared x-axis (e.g. dates).
+  function lineChart(series, labels) {
+    if (!labels || !labels.length) return "";
+    const w = 640, h = 200, pad = 28;
+    const n = labels.length;
+    const maxV = Math.max(1, ...series.flatMap((s) => s.values));
+    const stepX = n > 1 ? (w - pad * 2) / (n - 1) : 0;
+    const x = (i) => pad + i * stepX;
+    const y = (v) => h - pad - (v / maxV) * (h - pad * 2);
+    const paths = series.map((s) => {
+      const d = s.values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+      return `<path d="${d}" style="fill:none;stroke:${s.color};stroke-width:2;" />`;
+    }).join("");
+    const tickEvery = Math.max(1, Math.ceil(n / 6));
+    const ticks = labels.map((l, i) => (i % tickEvery === 0 || i === n - 1)
+      ? `<text x="${x(i).toFixed(1)}" y="${h - 8}" font-size="9" style="fill:var(--ink-2);" text-anchor="middle">${esc(String(l).slice(5))}</text>`
+      : "").join("");
+    const legend = series.map((s) => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${esc(s.name)}</span>`).join("");
+    return `
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px;display:block;">
+        <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" style="stroke:var(--line);" />
+        ${paths}
+        ${ticks}
+      </svg>
+      <div style="font-size:11px;color:var(--ink-2);margin-top:4px;">${legend}</div>`;
+  }
+
+  // Matching div-based bar chart (see index.html's original barRow, now
+  // shared here so analytics.html doesn't duplicate it).
+  function barChart(items, labelFn) {
+    if (!items || !items.length) return "";
+    const max = Math.max(...items.map((i) => i.count), 1);
+    return items.slice(0, 10).map((i) => `
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+        <div style="width:150px;font-size:12px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(labelFn ? labelFn(i.key) : i.key)}</div>
+        <div style="flex:1;background:var(--surface-2);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="width:${((i.count / max) * 100).toFixed(1)}%;background:var(--teal);height:100%;"></div>
+        </div>
+        <div class="mono" style="width:44px;text-align:right;font-size:12px;color:var(--ink-2);">${fmtNum(i.count)}</div>
+      </div>`).join("");
+  }
+
   function can(role, key) {
     return !!(role && PERMISSIONS[role] && PERMISSIONS[role].includes(key));
   }
@@ -336,7 +380,7 @@ const Admin = (() => {
     SUPABASE_URL, ANON_KEY, PERMISSIONS, NAV,
     getSession, signIn, signOut, requestPasswordReset, ensureToken, refresh, adoptSession, setPassword,
     restFetch, rest, rpc, restCount,
-    esc, fmtDate, fmtNum, can, toast, confirmModal,
+    esc, fmtDate, fmtNum, can, toast, confirmModal, lineChart, barChart,
     renderShell,
   };
 })();
