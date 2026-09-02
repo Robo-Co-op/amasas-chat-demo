@@ -59,13 +59,34 @@ const Admin = (() => {
   }
 
   async function requestPasswordReset(email) {
-    await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+    const redirectTo = `${location.origin}/admin/login.html`;
+    await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: ANON_KEY },
       body: JSON.stringify({ email }),
     });
     // Always resolve regardless of whether the account exists — don't leak
     // which emails are registered admins.
+  }
+
+  // Adopts a token set handed to us directly (e.g. from an invite/recovery
+  // email link's URL hash) without a fresh password sign-in.
+  function adoptSession(data) {
+    persistTokens(data);
+  }
+
+  // Sets a new password on the account behind `accessToken` — used right
+  // after an invite/recovery link lands, before any normal sign-in has
+  // happened.
+  async function setPassword(accessToken, newPassword) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", apikey: ANON_KEY, Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.msg || data.error_description || "パスワードの設定に失敗しました");
+    return data;
   }
 
   async function refresh() {
@@ -287,7 +308,7 @@ const Admin = (() => {
 
   return {
     SUPABASE_URL, ANON_KEY, PERMISSIONS, NAV,
-    getSession, signIn, signOut, requestPasswordReset, ensureToken, refresh,
+    getSession, signIn, signOut, requestPasswordReset, ensureToken, refresh, adoptSession, setPassword,
     restFetch, rest, rpc, restCount,
     esc, fmtDate, can, toast, confirmModal,
     renderShell,

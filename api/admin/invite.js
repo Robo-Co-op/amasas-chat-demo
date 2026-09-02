@@ -44,7 +44,15 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "admin ロールは owner / admin を招待できません" });
   }
 
-  const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+  // Redirects back to the same host the invite was sent from — there are
+  // multiple Vercel deployments of this app (see README), so a single
+  // hardcoded Site URL in Supabase's dashboard can't cover all of them.
+  // Requires the exact URL (or a matching pattern) to be in Supabase's
+  // Authentication → URL Configuration → Redirect URLs allowlist, or GoTrue
+  // silently falls back to the dashboard's default Site URL instead.
+  const redirectTo = `https://${req.headers.host}/admin/login.html`;
+
+  const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
     body: JSON.stringify({ email }),

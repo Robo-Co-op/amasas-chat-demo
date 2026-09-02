@@ -11,64 +11,125 @@
 </head>
 <body>
 <div class="center-page">
-  <div class="card authcard">
+  <div class="card authcard" id="card">
     <div class="brand">AMASAS<small>Admin Console</small></div>
-    <p class="lede">海士町オープンデータ・チャットの管理画面です。スタッフ用アカウントでサインインしてください。</p>
-    <div id="msg"></div>
-    <form id="form">
-      <div class="field">
-        <label for="email">メールアドレス</label>
-        <input id="email" type="email" autocomplete="username" required />
-      </div>
-      <div class="field">
-        <label for="password">パスワード</label>
-        <input id="password" type="password" autocomplete="current-password" required />
-      </div>
-      <button class="btn primary" type="submit" id="submit" style="width:100%;justify-content:center;">サインイン</button>
-    </form>
-    <p style="margin-top:14px;">
-      <a href="#" id="forgot" style="font-size:12px;">パスワードをお忘れですか？</a>
-    </p>
+    <div id="cardbody"></div>
   </div>
 </div>
 <script src="shared/admin.js"></script>
 <script>
 (function () {
-  // Already signed in? Skip straight past login.
-  const existing = Admin.getSession();
-  if (existing) {
-    const params = new URLSearchParams(location.search);
-    location.replace(params.get("next") || "index.html");
-    return;
+  const cardbody = document.getElementById("cardbody");
+
+  // Invite/recovery links land here as #access_token=...&refresh_token=...&type=invite
+  const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const inviteToken = hashParams.get("access_token");
+  const inviteType = hashParams.get("type"); // invite | recovery | signup
+
+  if (inviteToken && (inviteType === "invite" || inviteType === "recovery" || inviteType === "signup")) {
+    renderSetPassword(inviteToken, hashParams.get("refresh_token"), hashParams.get("expires_in"), inviteType);
+  } else {
+    // Already signed in? Skip straight past login.
+    const existing = Admin.getSession();
+    if (existing) {
+      const params = new URLSearchParams(location.search);
+      location.replace(params.get("next") || "index.html");
+      return;
+    }
+    renderSignIn();
   }
 
-  const form = document.getElementById("form");
-  const msg = document.getElementById("msg");
-  const submitBtn = document.getElementById("submit");
+  function renderSignIn() {
+    cardbody.innerHTML = `
+      <p class="lede">海士町オープンデータ・チャットの管理画面です。スタッフ用アカウントでサインインしてください。</p>
+      <div id="msg"></div>
+      <form id="form">
+        <div class="field">
+          <label for="email">メールアドレス</label>
+          <input id="email" type="email" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password">パスワード</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn primary" type="submit" id="submit" style="width:100%;justify-content:center;">サインイン</button>
+      </form>
+      <p style="margin-top:14px;">
+        <a href="#" id="forgot" style="font-size:12px;">パスワードをお忘れですか？</a>
+      </p>
+    `;
+    const form = document.getElementById("form");
+    const msg = document.getElementById("msg");
+    const submitBtn = document.getElementById("submit");
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    msg.innerHTML = "";
-    submitBtn.disabled = true;
-    submitBtn.textContent = "サインイン中…";
-    try {
-      await Admin.signIn(document.getElementById("email").value.trim(), document.getElementById("password").value);
-      const params = new URLSearchParams(location.search);
-      location.href = params.get("next") || "index.html";
-    } catch (err) {
-      msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
-      submitBtn.disabled = false;
-      submitBtn.textContent = "サインイン";
-    }
-  });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.innerHTML = "";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "サインイン中…";
+      try {
+        await Admin.signIn(document.getElementById("email").value.trim(), document.getElementById("password").value);
+        const params = new URLSearchParams(location.search);
+        location.href = params.get("next") || "index.html";
+      } catch (err) {
+        msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
+        submitBtn.disabled = false;
+        submitBtn.textContent = "サインイン";
+      }
+    });
 
-  document.getElementById("forgot").addEventListener("click", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email").value.trim();
-    if (!email) { msg.innerHTML = `<div class="errbox">先にメールアドレスを入力してください</div>`; return; }
-    await Admin.requestPasswordReset(email);
-    msg.innerHTML = `<div class="okbox">登録されているアドレスであれば、パスワード再設定メールを送信しました。</div>`;
-  });
+    document.getElementById("forgot").addEventListener("click", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      if (!email) { msg.innerHTML = `<div class="errbox">先にメールアドレスを入力してください</div>`; return; }
+      await Admin.requestPasswordReset(email);
+      msg.innerHTML = `<div class="okbox">登録されているアドレスであれば、パスワード再設定メールを送信しました。</div>`;
+    });
+  }
+
+  function renderSetPassword(accessToken, refreshToken, expiresIn, type) {
+    // Clear the token out of the visible URL/history right away — it's a live
+    // credential and shouldn't linger in the address bar or browser history.
+    history.replaceState(null, "", location.pathname + location.search);
+
+    cardbody.innerHTML = `
+      <p class="lede">${type === "recovery" ? "新しいパスワードを設定してください。" : "招待を受けました。ログイン用のパスワードを設定してください。"}</p>
+      <div id="msg"></div>
+      <form id="pform">
+        <div class="field">
+          <label for="p1">新しいパスワード</label>
+          <input id="p1" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <div class="field">
+          <label for="p2">確認</label>
+          <input id="p2" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <button class="btn primary" type="submit" id="psubmit" style="width:100%;justify-content:center;">パスワードを設定してログイン</button>
+      </form>
+    `;
+    const form = document.getElementById("pform");
+    const msg = document.getElementById("msg");
+    const submitBtn = document.getElementById("psubmit");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.innerHTML = "";
+      const p1 = document.getElementById("p1").value;
+      const p2 = document.getElementById("p2").value;
+      if (p1 !== p2) { msg.innerHTML = `<div class="errbox">パスワードが一致しません</div>`; return; }
+      submitBtn.disabled = true;
+      submitBtn.textContent = "設定中…";
+      try {
+        await Admin.setPassword(accessToken, p1);
+        Admin.adoptSession({ access_token: accessToken, refresh_token: refreshToken, expires_in: parseInt(expiresIn, 10) || 3600 });
+        location.href = "index.html";
+      } catch (err) {
+        msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
+        submitBtn.disabled = false;
+        submitBtn.textContent = "パスワードを設定してログイン";
+      }
+    });
+  }
 })();
 </script>
 </body>
