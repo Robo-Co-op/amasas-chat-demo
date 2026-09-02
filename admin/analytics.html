@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>アクセス解析 | AMASAS Admin</title>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/i18n.js"></script>
+<script src="shared/admin.js"></script>
+<script>
+(async function () {
+  document.title = I18n.t("analytics.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "analytics", title: I18n.t("analytics.title"), sub: I18n.t("analytics.sub") });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+
+  const RANGE_KEYS = ["today", "7d", "30d", "3m", "1y", "custom"];
+  const RANGE_DAYS = { today: 0, "7d": 7, "30d": 30, "3m": 90, "1y": 365 };
+  let range = { key: "30d", customFrom: "", customTo: "" };
+  let visitorState = { search: "", role: "", status: "", limit: 25, offset: 0 };
+
+  const COLORS = { teal: "#0f766e", l4: "#2C6A51", db: "#1B5885", accent: "#AC3B29" };
+
+  function isoRange() {
+    const now = new Date();
+    if (range.key === "custom" && range.customFrom && range.customTo) {
+      return { from: new Date(range.customFrom + "T00:00:00Z").toISOString(), to: new Date(range.customTo + "T23:59:59Z").toISOString() };
+    }
+    if (range.key === "today") {
+      const from = new Date(now); from.setUTCHours(0, 0, 0, 0);
+      return { from: from.toISOString(), to: now.toISOString() };
+    }
+    const days = RANGE_DAYS[range.key] ?? 30;
+    return { from: new Date(now.getTime() - days * 86400000).toISOString(), to: now.toISOString() };
+  }
+
+  function granularity() {
+    if (range.key === "today" || range.key === "7d" || range.key === "30d") return "day";
+    if (range.key === "3m") return "week";
+    if (range.key === "custom" && range.customFrom && range.customTo) {
+      const span = (new Date(range.customTo) - new Date(range.customFrom)) / 86400000;
+      return span <= 31 ? "day" : span <= 180 ? "week" : "month";
+    }
+    return "month";
+  }
+
+  function fmtDuration(seconds) {
+    seconds = Number(seconds) || 0;
+    if (seconds < 60) return I18n.t("analytics.duration_seconds", { n: Math.round(seconds) });
+    return I18n.t("analytics.duration_minutes", { n: Math.round(seconds / 60) });
+  }
+
+  function labelFor(dimension, key) {
+    if (key === null || key === undefined || key === "" || key === "unknown") return I18n.t("analytics.unknown");
+    let k = null;
+    if (dimension === "role_tag") k = "roletag." + key;
+    if (dimension === "event_type") k = "analytics.event." + key;
+    if (k) { const t = I18n.t(k); if (t !== k) return t; }
+    return key;
+  }
+
+  // ---- small hand-rolled charts (no library, matches this codebase's zero-dependency convention) ----
+  function barChart(items, dimension) {
+    if (!items || !items.length) return `<div class="loading">${I18n.t("analytics.no_data")}</div>`;
+    const max = Math.max(...items.map((i) => i.count), 1);
+    return items.slice(0, 10).map((i) => `
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+        <div style="width:150px;font-size:12px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Admin.esc(labelFor(dimension, i.key))}</div>
+        <div style="flex:1;background:var(--surface-2);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="width:${((i.count / max) * 100).toFixed(1)}%;background:var(--teal);height:100%;"></div>
+        </div>
+        <div class="mono" style="width:44px;text-align:right;font-size:12px;color:var(--ink-2);">${Admin.fmtNum(i.count)}</div>
+      </div>`).join("");
+  }
+
+  function lineChart(series, labels) {
+    if (!labels.length) return `<div class="loading">${I18n.t("analytics.no_data")}</div>`;
+    const w = 640, h = 200, pad = 28;
+    const n = labels.length;
+    const maxV = Math.max(1, ...series.flatMap((s) => s.values));
+    const stepX = n > 1 ? (w - pad * 2) / (n - 1) : 0;
+    const x = (i) => pad + i * stepX;
+    const y = (v) => h - pad - (v / maxV) * (h - pad * 2);
+    const paths = series.map((s) => {
+      const d = s.values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+      return `<path d="${d}" style="fill:none;stroke:${s.color};stroke-width:2;" />`;
+    }).join("");
+    const tickEvery = Math.max(1, Math.ceil(n / 6));
+    const ticks = labels.map((l, i) => (i % tickEvery === 0 || i === n - 1)
+      ? `<text x="${x(i).toFixed(1)}" y="${h - 8}" font-size="9" style="fill:var(--ink-2);" text-anchor="middle">${Admin.esc(l.slice(5))}</text>`
+      : "").join("");
+    const legend = series.map((s) => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;"><span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block;"></span>${Admin.esc(s.name)}</span>`).join("");
+    return `
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px;display:block;">
+        <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" style="stroke:var(--line);" />
+        ${paths}
+        ${ticks}
+      </svg>
+      <div style="font-size:11px;color:var(--ink-2);margin-top:4px;">${legend}</div>`;
+  }
+
+  // ---- shell ----
+  content.innerHTML = `
+    <div class="toolbar" id="rangebar"></div>
+    <div id="current" class="grid kpis" style="margin-bottom:20px;"></div>
+    <div id="kpis" class="grid kpis"></div>
+    <div id="charts"></div>
+
+    <h2 class="section">${I18n.t("analytics.table.heading")}</h2>
+    <div class="toolbar">
+      <input id="v-search" placeholder="${I18n.t("analytics.table.search")}" style="max-width:220px;" />
+      <select id="v-role" style="max-width:220px;"></select>
+      <select id="v-status" style="max-width:160px;">
+        <option value="">${I18n.t("analytics.table.status_all")}</option>
+        <option value="active">${I18n.t("analytics.status.active")}</option>
+        <option value="inactive">${I18n.t("analytics.status.inactive")}</option>
+      </select>
+      <button class="btn ghost sm" id="v-apply">${I18n.t("analytics.range.apply")}</button>
+      <div class="spacer"></div>
+    </div>
+    <div id="visitorlist"><div class="loading">${I18n.t("common.loading")}</div></div>
+    <div class="pager">
+      <span id="v-pageinfo"></span>
+      <button class="btn ghost sm" id="v-prev">${I18n.t("common.prev")}</button>
+      <button class="btn ghost sm" id="v-next">${I18n.t("common.next")}</button>
+    </div>
+  `;
+
+  const ROLE_TAGS = ["not_visited", "visited", "ambassador", "island_study", "student", "resident", "townhall", "corporate", "project", "other"];
+  const roleSel = document.getElementById("v-role");
+  roleSel.innerHTML = `<option value="">${I18n.t("analytics.table.role_all")}</option>` +
+    ROLE_TAGS.map((r) => `<option value="${r}">${Admin.esc(I18n.t("roletag." + r))}</option>`).join("");
+
+  renderRangeBar();
+  await Promise.all([loadCurrent(), loadAll(), loadVisitors()]);
+
+  document.getElementById("v-apply").addEventListener("click", () => {
+    visitorState.search = document.getElementById("v-search").value.trim();
+    visitorState.role = roleSel.value;
+    visitorState.status = document.getElementById("v-status").value;
+    visitorState.offset = 0;
+    loadVisitors();
+  });
+  document.getElementById("v-prev").addEventListener("click", () => { visitorState.offset = Math.max(0, visitorState.offset - visitorState.limit); loadVisitors(); });
+  document.getElementById("v-next").addEventListener("click", () => { visitorState.offset += visitorState.limit; loadVisitors(); });
+
+  function renderRangeBar() {
+    const bar = document.getElementById("rangebar");
+    bar.innerHTML = RANGE_KEYS.map((k) => `<button class="btn ${k === range.key ? "primary" : "ghost"} sm" data-range="${k}">${I18n.t("analytics.range." + k)}</button>`).join("") +
+      `<span id="customwrap" style="display:${range.key === "custom" ? "inline-flex" : "none"};gap:8px;align-items:center;">
+        <input id="c-from" type="date" value="${range.customFrom}" style="max-width:150px;" />
+        <input id="c-to" type="date" value="${range.customTo}" style="max-width:150px;" />
+        <button class="btn ghost sm" id="c-apply">${I18n.t("analytics.range.apply")}</button>
+      </span>`;
+    bar.querySelectorAll("[data-range]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        range.key = btn.dataset.range;
+        renderRangeBar();
+        if (range.key !== "custom" || (range.customFrom && range.customTo)) {
+          Promise.all([loadCurrent(), loadAll(), loadVisitors()]);
+        }
+      });
+    });
+    const customApply = document.getElementById("c-apply");
+    if (customApply) {
+      customApply.addEventListener("click", () => {
+        range.customFrom = document.getElementById("c-from").value;
+        range.customTo = document.getElementById("c-to").value;
+        if (!range.customFrom || !range.customTo) return;
+        Promise.all([loadCurrent(), loadAll(), loadVisitors()]);
+      });
+    }
+  }
+
+  async function loadCurrent() {
+    const el = document.getElementById("current");
+    el.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
+    try {
+      const now = new Date();
+      const windows = [1, 7, 30].map((d) => ({
+        from: new Date(now.getTime() - d * 86400000).toISOString(),
+        to: now.toISOString(),
+      }));
+      const [dau, wau, mau] = await Promise.all(
+        windows.map((w) => Admin.rpc("admin_analytics_summary", { from_ts: w.from, to_ts: w.to }))
+      );
+      el.innerHTML = `
+        <div class="card kpi"><div class="label">${I18n.t("analytics.dau")}</div><div class="value">${Admin.fmtNum(dau.unique_visitors)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.wau")}</div><div class="value">${Admin.fmtNum(wau.unique_visitors)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.mau")}</div><div class="value">${Admin.fmtNum(mau.unique_visitors)}</div></div>
+      `;
+    } catch (err) {
+      el.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
+    }
+  }
+
+  async function loadAll() {
+    const kpisEl = document.getElementById("kpis");
+    const chartsEl = document.getElementById("charts");
+    kpisEl.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
+    chartsEl.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
+    try {
+      const { from, to } = isoRange();
+      const g = granularity();
+      const [summary, series, device, browser, os, country, features, role] = await Promise.all([
+        Admin.rpc("admin_analytics_summary", { from_ts: from, to_ts: to }),
+        Admin.rpc("admin_analytics_timeseries", { from_ts: from, to_ts: to, granularity: g }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "device_type" }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "browser" }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "os" }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "country" }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "event_type" }),
+        Admin.rpc("admin_analytics_breakdown", { from_ts: from, to_ts: to, dimension: "role_tag" }),
+      ]);
+
+      kpisEl.innerHTML = `
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.sessions")}</div><div class="value">${Admin.fmtNum(summary.total_sessions)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.unique_visitors")}</div><div class="value">${Admin.fmtNum(summary.unique_visitors)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.new_visitors")}</div><div class="value">${Admin.fmtNum(summary.new_visitors)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.returning_visitors")}</div><div class="value">${Admin.fmtNum(summary.returning_visitors)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.landing_views")}</div><div class="value">${Admin.fmtNum(summary.total_landing_views)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.chat_started")}</div><div class="value">${Admin.fmtNum(summary.total_chat_started)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.avg_duration")}</div><div class="value">${fmtDuration(summary.avg_session_duration_seconds)}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("analytics.kpi.feedback")}</div><div class="value">👍 ${Admin.fmtNum(summary.feedback_ok)} ・ 👎 ${Admin.fmtNum(summary.feedback_ng)}</div></div>
+      `;
+
+      const labels = series.map((p) => p.bucket);
+      chartsEl.innerHTML = `
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px;">
+          <div class="card">
+            <h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.growth")}</h2>
+            ${lineChart([
+              { name: I18n.t("analytics.kpi.unique_visitors"), color: COLORS.teal, values: series.map((p) => p.unique_visitors) },
+              { name: I18n.t("analytics.kpi.new_visitors"), color: COLORS.l4, values: series.map((p) => p.new_visitors) },
+            ], labels)}
+          </div>
+          <div class="card">
+            <h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.new_vs_returning")}</h2>
+            ${lineChart([
+              { name: I18n.t("analytics.kpi.new_visitors"), color: COLORS.l4, values: series.map((p) => p.new_visitors) },
+              { name: I18n.t("analytics.kpi.returning_visitors"), color: COLORS.db, values: series.map((p) => p.returning_visitors) },
+            ], labels)}
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.traffic")}</h2>
+          ${lineChart([
+            { name: I18n.t("analytics.kpi.sessions"), color: COLORS.teal, values: series.map((p) => p.sessions) },
+            { name: I18n.t("analytics.kpi.landing_views"), color: COLORS.db, values: series.map((p) => p.landing_views) },
+            { name: I18n.t("common.details"), color: COLORS.accent, values: series.map((p) => p.messages) },
+          ], labels)}
+        </div>
+
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;">
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.device")}</h2>${barChart(device, "device_type")}</div>
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.browser")}</h2>${barChart(browser, "browser")}</div>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;">
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.os")}</h2>${barChart(os, "os")}</div>
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.country")}</h2>${barChart(country, "country")}</div>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;">
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.features")}</h2>${barChart(features, "event_type")}</div>
+          <div class="card"><h2 class="section" style="margin-top:0;">${I18n.t("analytics.chart.role")}</h2>${barChart(role, "role_tag")}</div>
+        </div>
+      `;
+    } catch (err) {
+      chartsEl.innerHTML = "";
+      kpisEl.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
+    }
+  }
+
+  async function loadVisitors() {
+    const el = document.getElementById("visitorlist");
+    el.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
+    try {
+      const { from, to } = isoRange();
+      const rows = await Admin.rpc("admin_analytics_visitors", {
+        from_ts: from, to_ts: to,
+        search: visitorState.search || null, role_tag_filter: visitorState.role || null, status_filter: visitorState.status || null,
+        limit_n: visitorState.limit, offset_n: visitorState.offset,
+      });
+      document.getElementById("v-pageinfo").textContent = rows.length
+        ? I18n.t("audit.count_range", { from: visitorState.offset + 1, to: visitorState.offset + rows.length })
+        : I18n.t("common.count_zero");
+      document.getElementById("v-prev").disabled = visitorState.offset === 0;
+      document.getElementById("v-next").disabled = rows.length < visitorState.limit;
+
+      el.innerHTML = rows.length ? `
+        <div class="tablewrap"><table class="dtable">
+          <thead><tr>
+            <th>${I18n.t("analytics.th.nickname")}</th><th>${I18n.t("analytics.th.role")}</th>
+            <th>${I18n.t("analytics.th.first_seen")}</th><th>${I18n.t("analytics.th.last_active")}</th>
+            <th class="num">${I18n.t("analytics.th.sessions")}</th><th>${I18n.t("analytics.th.status")}</th>
+          </tr></thead>
+          <tbody>${rows.map((v) => `
+            <tr>
+              <td>${Admin.esc(v.nickname || "—")}</td>
+              <td>${Admin.esc(labelFor("role_tag", v.role_tag))}</td>
+              <td>${Admin.fmtDate(v.first_seen)}</td>
+              <td>${Admin.fmtDate(v.last_active)}</td>
+              <td class="num">${v.session_count}</td>
+              <td><span class="badge ${v.status === "active" ? "ok" : "layer"}">${I18n.t("analytics.status." + v.status)}</span></td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+      ` : `<div class="empty"><div class="big">👥</div>${I18n.t("analytics.no_results")}</div>`;
+    } catch (err) {
+      el.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
+    }
+  }
+})();
+</script>
+</body>
+</html>

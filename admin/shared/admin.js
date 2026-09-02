@@ -11,8 +11,8 @@ const Admin = (() => {
   // pages). The real boundary is admin.current_role() enforced inside every
   // public.admin_* RPC and the RLS policies on the chat-log tables.
   const PERMISSIONS = {
-    owner: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "settings", "audit"],
-    admin: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "settings", "audit"],
+    owner: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
+    admin: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
     editor: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit"],
     viewer: ["dashboard", "conversations", "feedback", "knowledge_view"],
   };
@@ -23,6 +23,7 @@ const Admin = (() => {
     { key: "feedback", href: "feedback.html", labelKey: "nav.feedback", icon: "FB" },
     { key: "knowledge_view", href: "knowledge.html", labelKey: "nav.knowledge", icon: "KB" },
     { key: "users", href: "users.html", labelKey: "nav.users", icon: "US" },
+    { key: "analytics", href: "analytics.html", labelKey: "nav.analytics", icon: "AN" },
     { key: "settings", href: "settings.html", labelKey: "nav.settings", icon: "ST" },
     { key: "audit", href: "audit.html", labelKey: "nav.audit", icon: "AU" },
   ];
