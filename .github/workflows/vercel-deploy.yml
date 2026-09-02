@@ -1,8 +1,10 @@
-name: Deploy amasas-chat-demo to Vercel (production)
+name: Deploy amasas-ai to Vercel (production)
 
-# Production deploys for the amasas-chat-demo Vercel project go through this
-# workflow instead of Vercel's own Git integration, so a merge to main is
-# reviewable/auditable like the Supabase migrations workflow.
+# Production deploys for the "amasas-ai" Vercel project (the one serving the
+# real production domain, amasas-chat-demo-7bk6.vercel.app -- project NAME
+# doesn't match the domain/repo name) go through this workflow instead of
+# Vercel's own Git integration, so a merge to main is reviewable/auditable
+# like the Supabase migrations workflow.
 #
 # Vercel's Git integration still auto-builds PREVIEW deployments for every
 # push/PR exactly as before — only the production build on `main` moves
@@ -11,8 +13,8 @@ name: Deploy amasas-chat-demo to Vercel (production)
 # Project Settings -> Git -> Ignore Build Step, set to:
 #   if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 0; else exit 1; fi
 #
-# The other two Vercel projects deploying from this repo (amasas-chat-demo-main,
-# amasas-ai) are unaffected and keep deploying directly via Vercel.
+# The other two Vercel projects deploying from this repo (amasas-chat-demo,
+# amasas-chat-demo-main) are unaffected and keep deploying directly via Vercel.
 on:
   push:
     branches: [main]
