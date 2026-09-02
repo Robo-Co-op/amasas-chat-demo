@@ -116,6 +116,8 @@ const I18n = (() => {
       en: "Model in use: {{model}} (fallback under load: {{fallback}}) · Default data layer: {{layer}}",
     },
     "dashboard.health.db_reachable": { ja: "DB 疎通", en: "DB reachable" },
+    "dashboard.analytics_preview_heading": { ja: "アクセス解析（直近30日）", en: "Analytics (last 30 days)" },
+    "dashboard.view_full_analytics": { ja: "アクセス解析を詳しく見る →", en: "View full Analytics →" },
 
     // ---------------- conversations.html ----------------
     "conversations.title": { ja: "会話ログ", en: "Conversations" },

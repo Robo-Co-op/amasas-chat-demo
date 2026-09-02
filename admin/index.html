@@ -25,12 +25,15 @@
 
   content.innerHTML = `<div class="loading">${I18n.t("dashboard.aggregating")}</div>`;
 
+  const canSeeAnalytics = Admin.can(ctx.role, "analytics");
+
   try {
     const [
       sessionsTotal, sessions7d, sessions30d,
       messagesTotal, feedbackOk, feedbackNg,
       recentSessions, recentNg, sampleMessages,
       maintenance,
+      analyticsSummary, analyticsDau, analyticsSeries,
     ] = await Promise.all([
       Admin.restCount("amasas_chat_sessions", "select=id"),
       Admin.restCount("amasas_chat_sessions", `select=id&created_at=gte.${iso(7)}`),
@@ -42,6 +45,9 @@
       Admin.rest("/rest/v1/amasas_chat_feedback?select=*&verdict=eq.ng&order=created_at.desc&limit=5"),
       Admin.rest("/rest/v1/amasas_chat_messages?select=model,data_layer,sql_log&role=eq.assistant&order=created_at.desc&limit=500"),
       Admin.rpc("amasas_maintenance_status").catch(() => null),
+      canSeeAnalytics ? Admin.rpc("admin_analytics_summary", { from_ts: iso(30), to_ts: new Date().toISOString() }).catch(() => null) : null,
+      canSeeAnalytics ? Admin.rpc("admin_analytics_summary", { from_ts: iso(1), to_ts: new Date().toISOString() }).catch(() => null) : null,
+      canSeeAnalytics ? Admin.rpc("admin_analytics_timeseries", { from_ts: iso(30), to_ts: new Date().toISOString(), granularity: "day" }).catch(() => null) : null,
     ]);
 
     let health = null;
@@ -90,6 +96,22 @@
         <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.feedback")}</div><div class="value">${satisfaction !== null ? satisfaction + "%" : "—"}</div><div class="note">${satisfaction !== null ? I18n.t("dashboard.kpi.feedback_note", { ok: num(feedbackOk), ng: num(feedbackNg) }) : I18n.t("dashboard.kpi.feedback_none")}</div></div>
         <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.sql_error_rate")}</div><div class="value">${sampleMessages.length ? Math.round((errorCount / sampleMessages.length) * 100) + "%" : "—"}</div><div class="note">${I18n.t("dashboard.kpi.sql_error_note", { n: num(errorCount) })}</div></div>
       </div>
+
+      ${canSeeAnalytics && analyticsSummary && analyticsSeries ? `
+      <h2 class="section">${I18n.t("dashboard.analytics_preview_heading")}</h2>
+      <div class="card">
+        <div style="display:flex;gap:28px;flex-wrap:wrap;margin-bottom:14px;">
+          <div><div style="font-size:12px;color:var(--ink-2);">${I18n.t("analytics.kpi.unique_visitors")}</div><div class="mono" style="font-size:22px;font-weight:500;">${num(analyticsSummary.unique_visitors)}</div></div>
+          <div><div style="font-size:12px;color:var(--ink-2);">${I18n.t("analytics.dau")}</div><div class="mono" style="font-size:22px;font-weight:500;">${analyticsDau ? num(analyticsDau.unique_visitors) : "—"}</div></div>
+          <div><div style="font-size:12px;color:var(--ink-2);">${I18n.t("analytics.kpi.new_visitors")}</div><div class="mono" style="font-size:22px;font-weight:500;">${num(analyticsSummary.new_visitors)}</div></div>
+        </div>
+        ${Admin.lineChart([
+          { name: I18n.t("analytics.kpi.unique_visitors"), color: "#0f766e", values: analyticsSeries.map((p) => p.unique_visitors) },
+          { name: I18n.t("analytics.kpi.new_visitors"), color: "#2C6A51", values: analyticsSeries.map((p) => p.new_visitors) },
+        ], analyticsSeries.map((p) => p.bucket)) || `<div class="loading">${I18n.t("dashboard.no_data")}</div>`}
+        <p style="margin:10px 0 0;"><a href="analytics.html">${I18n.t("dashboard.view_full_analytics")}</a></p>
+      </div>
+      ` : ""}
 
       <h2 class="section">${I18n.t("dashboard.system_status")}</h2>
       <div class="card">
