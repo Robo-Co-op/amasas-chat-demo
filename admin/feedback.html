@@ -4,6 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>フィードバック | AMASAS Admin</title>
+<script>
+// This repo deploys under 3 separate Vercel accounts (see index.html) --
+// redirect visitors on the two we don't control to the canonical domain.
+// Preserves the path, so /admin/* deep links keep working after redirect.
+if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-projects\.vercel\.app$/.test(location.hostname)) {
+  location.replace("https://amasas-chat-demo-7bk6.vercel.app" + location.pathname + location.search + location.hash);
+}
+</script>
 <script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
