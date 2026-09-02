@@ -22,12 +22,20 @@
   const cardbody = document.getElementById("cardbody");
 
   // Invite/recovery links land here as #access_token=...&refresh_token=...&type=invite
+  // — but an expired/already-used/malformed link lands as #error=...&error_description=...
+  // instead, with no access_token at all. That case must be shown explicitly:
+  // silently falling through to the plain sign-in form (the old behavior) looks
+  // exactly like "nothing happened" from the recipient's side.
   const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
   const inviteToken = hashParams.get("access_token");
   const inviteType = hashParams.get("type"); // invite | recovery | signup
+  const hashError = hashParams.get("error_description") || hashParams.get("error");
 
   if (inviteToken && (inviteType === "invite" || inviteType === "recovery" || inviteType === "signup")) {
     renderSetPassword(inviteToken, hashParams.get("refresh_token"), hashParams.get("expires_in"), inviteType);
+  } else if (hashError) {
+    history.replaceState(null, "", location.pathname + location.search);
+    renderSignIn(hashError.replace(/\+/g, " "));
   } else {
     // Already signed in? Skip straight past login.
     const existing = Admin.getSession();
@@ -39,10 +47,12 @@
     renderSignIn();
   }
 
-  function renderSignIn() {
+  function renderSignIn(linkError) {
     cardbody.innerHTML = `
       <p class="lede">海士町オープンデータ・チャットの管理画面です。スタッフ用アカウントでサインインしてください。</p>
-      <div id="msg"></div>
+      <div id="msg">${linkError
+        ? `<div class="errbox">招待/再設定リンクが無効です（期限切れ、または既に使用済みの可能性があります）。もう一度招待し直すか、パスワード再設定をやり直してください。<br><span style="font-size:11px;opacity:.75;">詳細: ${Admin.esc(linkError)}</span></div>`
+        : ""}</div>
       <form id="form">
         <div class="field">
           <label for="email">メールアドレス</label>
