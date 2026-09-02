@@ -1,0 +1,108 @@
+<!--
+  Supabase Auth email template: "Invite user"
+  Paste this into: Supabase Dashboard → Authentication → Emails → Templates → Invite user
+  Available variables: {{ .ConfirmationURL }} {{ .SiteURL }} {{ .Email }}
+  Table-based layout + inline styles throughout (not just <style>) for
+  compatibility with Outlook/older clients that ignore <style> blocks.
+-->
+<!DOCTYPE html>
+<html lang="ja" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>AMASAS 管理者への招待</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: #E9EEEE; }
+  a { color: #0f766e; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#E9EEEE;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#E9EEEE;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E1E7E7;">
+
+          <!-- header -->
+          <tr>
+            <td style="background-color:#0f766e;padding:28px 36px;">
+              <div style="font-family:Georgia,'Hiragino Mincho ProN',serif;font-weight:700;font-size:22px;color:#FFFFFF;letter-spacing:0.02em;">AMASAS</div>
+              <div style="font-family:'Courier New',Courier,monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#CFE8E4;margin-top:4px;">Admin Console</div>
+            </td>
+          </tr>
+
+          <!-- body -->
+          <tr>
+            <td style="padding:36px 36px 8px;">
+              <p style="margin:0 0 16px;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:15px;line-height:1.8;color:#152C3A;">
+                こんにちは、
+              </p>
+              <p style="margin:0 0 16px;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:15px;line-height:1.8;color:#152C3A;">
+                海士町オープンデータ・チャット「AMASAS」の<strong>管理画面</strong>への招待が届いています。下のボタンから、ログイン用のパスワードを設定してください。
+              </p>
+            </td>
+          </tr>
+
+          <!-- button -->
+          <tr>
+            <td style="padding:8px 36px 32px;" align="center">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="border-radius:10px;background-color:#0f766e;">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:inline-block;padding:14px 32px;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:10px;">
+                      招待を受けてパスワードを設定
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- fallback link -->
+          <tr>
+            <td style="padding:0 36px 28px;">
+              <p style="margin:0 0 6px;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:12px;line-height:1.7;color:#506776;">
+                ボタンが機能しない場合は、次のURLをブラウザに貼り付けてください:
+              </p>
+              <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.6;color:#1B5885;word-break:break-all;">
+                <a href="{{ .ConfirmationURL }}" style="color:#1B5885;">{{ .ConfirmationURL }}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- notice -->
+          <tr>
+            <td style="padding:0 36px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F2F6F6;border-radius:10px;">
+                <tr>
+                  <td style="padding:14px 18px;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:12.5px;line-height:1.7;color:#506776;">
+                    このリンクの有効期限は24時間です。心当たりがない場合は、このメールを無視してください（アカウントは作成されません）。
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- footer -->
+          <tr>
+            <td style="padding:20px 36px 28px;border-top:1px solid #E1E7E7;">
+              <p style="margin:0;font-family:'Hiragino Sans','Yu Gothic',Arial,sans-serif;font-size:11px;line-height:1.6;color:#9BA9AE;">
+                AMASAS Admin Console ・ Robo Co-op<br />
+                このメールは管理画面への招待に伴い自動送信されています。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

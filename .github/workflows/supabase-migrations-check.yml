@@ -1,0 +1,32 @@
+name: Check Supabase migrations (PR)
+
+# Safety net for the auto-apply workflow: on any PR touching
+# supabase/migrations/, connects to the live project and shows exactly what
+# db push would do — without applying anything — so a broken migration is
+# caught in review, not on merge to main.
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref jcokpgmqmtxefzjjenrx --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Dry-run pending migrations
+        run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
