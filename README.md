@@ -103,6 +103,22 @@ done
 
 2026-09-02時点で、`0001`〜`0006`は既に本番へ適用済みで、リモート側のマイグレーション履歴テーブルも`supabase migration repair`で整合済みです（このワークフローが初回実行時に過去分を再適用しようとすることはありません）。
 
+### 本番デプロイの自動化（GitHub Actions → Vercel）
+
+`.github/workflows/vercel-deploy.yml`が、`main`へのpushで`amasas-ai`プロジェクト（本番ドメイン`amasas-chat-demo-7bk6.vercel.app`を提供している実体 — Vercel上のプロジェクト名はドメイン名やリポジトリ名とは一致しないので注意）の本番デプロイを実行します（`vercel build` + `vercel deploy --prod`）。このリポジトリからは他に`amasas-chat-demo`・`amasas-chat-demo-main`の2プロジェクトもデプロイされていますが、この2つは対象外で、これまで通りVercelのGit連携が直接デプロイします。プレビューデプロイ（PR・ブランチpush）はどのプロジェクトも変わらずVercel側が自動で行います。
+
+有効にするには、GitHubリポジトリの **Settings → Secrets and variables → Actions** に以下3つを登録してください（値は貼り付けないでください。私からは入力できません — 各自で登録してください）:
+
+- `VERCEL_TOKEN` — https://vercel.com/account/tokens で発行する個人アクセストークン
+- `VERCEL_ORG_ID` — Vercelチームの設定ページ（Settings → General）に表示される Team ID
+- `VERCEL_PROJECT_ID` — **`amasas-ai`**プロジェクト（`amasas-chat-demo`ではない）の Settings → General に表示される Project ID
+
+**あわせて必須の手動設定**: `amasas-ai`プロジェクトの Settings → Git → **Ignore Build Step** に以下を設定し、Vercel自身による`main`ブランチの自動ビルド/本番デプロイを止めてください（これをやらないと、このワークフローとVercelの両方が同じpushで本番デプロイを行うことになります）。他ブランチ（PRプレビュー）はこれまで通りビルドされます:
+
+```bash
+if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 0; else exit 1; fi
+```
+
 ### セットアップ（初回のみ・手動）
 
 1. `0006_admin.sql`を他のマイグレーションと同じ手順で適用します（上記「DBについて」参照。新規マイグレーションは上記のGitHub Actionsで自動適用されるため、これは初回のみの手順です）:
