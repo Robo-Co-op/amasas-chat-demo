@@ -4,23 +4,26 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ダッシュボード | AMASAS Admin</title>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="shared/admin.css">
 </head>
 <body>
+<script src="shared/i18n.js"></script>
 <script src="shared/admin.js"></script>
 <script>
 (async function () {
-  const ctx = await Admin.renderShell({ page: "dashboard", title: "ダッシュボード", sub: "会話・フィードバックの実データと、公開チャットの稼働状況" });
+  document.title = I18n.t("dashboard.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "dashboard", title: I18n.t("dashboard.title"), sub: I18n.t("dashboard.sub") });
   if (!ctx) return;
   const content = document.getElementById("content");
 
   const iso = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
-  const num = (n) => (n ?? 0).toLocaleString("ja-JP");
+  const num = Admin.fmtNum;
 
-  content.innerHTML = `<div class="loading">集計中…</div>`;
+  content.innerHTML = `<div class="loading">${I18n.t("dashboard.aggregating")}</div>`;
 
   try {
     const [
@@ -73,65 +76,68 @@
           <div style="width:${total ? (v / total) * 100 : 0}%;background:var(--teal);height:100%;"></div>
         </div>
         <div class="mono" style="width:44px;text-align:right;font-size:12px;color:var(--ink-2);">${v}</div>
-      </div>`).join("") || `<div class="loading">データがありません</div>`;
+      </div>`).join("") || `<div class="loading">${I18n.t("dashboard.no_data")}</div>`;
 
     const healthChip = (okBool, label) =>
       `<span class="badge ${okBool ? "ok" : "ng"}">${okBool ? "✓" : "✕"} ${Admin.esc(label)}</span>`;
 
     content.innerHTML = `
-      ${maintenance && maintenance.enabled ? `<div class="errbox">⚠ メンテナンスモードが有効です。公開チャットは現在利用できません。（<a href="settings.html">設定で解除</a>）</div>` : ""}
+      ${maintenance && maintenance.enabled ? `<div class="errbox">${I18n.t("dashboard.maintenance_banner")}</div>` : ""}
 
       <div class="grid kpis">
-        <div class="card kpi"><div class="label">セッション数（全期間）</div><div class="value">${num(sessionsTotal)}</div><div class="note">直近7日: ${num(sessions7d)} ・ 直近30日: ${num(sessions30d)}</div></div>
-        <div class="card kpi"><div class="label">メッセージ数（全期間）</div><div class="value">${num(messagesTotal)}</div><div class="note">ユーザー発話+AI応答の合計</div></div>
-        <div class="card kpi"><div class="label">フィードバック</div><div class="value">${satisfaction !== null ? satisfaction + "%" : "—"}</div><div class="note">${satisfaction !== null ? `👍 ${num(feedbackOk)} ・ 👎 ${num(feedbackNg)}` : "まだ評価がありません"}</div></div>
-        <div class="card kpi"><div class="label">SQLエラー率（直近500件中）</div><div class="value">${sampleMessages.length ? Math.round((errorCount / sampleMessages.length) * 100) + "%" : "—"}</div><div class="note">${num(errorCount)} 件でクエリエラーが発生</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.sessions_total")}</div><div class="value">${num(sessionsTotal)}</div><div class="note">${I18n.t("dashboard.kpi.sessions_note", { d7: num(sessions7d), d30: num(sessions30d) })}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.messages_total")}</div><div class="value">${num(messagesTotal)}</div><div class="note">${I18n.t("dashboard.kpi.messages_note")}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.feedback")}</div><div class="value">${satisfaction !== null ? satisfaction + "%" : "—"}</div><div class="note">${satisfaction !== null ? I18n.t("dashboard.kpi.feedback_note", { ok: num(feedbackOk), ng: num(feedbackNg) }) : I18n.t("dashboard.kpi.feedback_none")}</div></div>
+        <div class="card kpi"><div class="label">${I18n.t("dashboard.kpi.sql_error_rate")}</div><div class="value">${sampleMessages.length ? Math.round((errorCount / sampleMessages.length) * 100) + "%" : "—"}</div><div class="note">${I18n.t("dashboard.kpi.sql_error_note", { n: num(errorCount) })}</div></div>
       </div>
 
-      <h2 class="section">システム状態</h2>
+      <h2 class="section">${I18n.t("dashboard.system_status")}</h2>
       <div class="card">
         ${health ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
             ${healthChip(health.geminiKeyConfigured, "GEMINI_API_KEY")}
             ${healthChip(health.serviceKeyConfigured, "SUPABASE_SERVICE_KEY")}
-            ${healthChip(health.dbReachable, "DB 疎通")}
+            ${healthChip(health.dbReachable, I18n.t("dashboard.health.db_reachable"))}
             <span class="badge layer">${Admin.esc(health.vercelEnv)}</span>
           </div>
           <div style="font-size:13px;color:var(--ink-2);">
-            使用モデル: <span class="mono">${Admin.esc(health.geminiModel)}</span>（混雑時フォールバック: <span class="mono">${Admin.esc(health.geminiFallbackModel)}</span>）・
-            データ層既定: <span class="mono">${Admin.esc(health.dataLayer)}</span>
+            ${I18n.t("dashboard.model_summary", {
+              model: `<span class="mono">${Admin.esc(health.geminiModel)}</span>`,
+              fallback: `<span class="mono">${Admin.esc(health.geminiFallbackModel)}</span>`,
+              layer: `<span class="mono">${Admin.esc(health.dataLayer)}</span>`,
+            })}
           </div>
-        ` : `<div class="loading">システム状態を取得できませんでした</div>`}
+        ` : `<div class="loading">${I18n.t("dashboard.system_status_unavailable")}</div>`}
       </div>
 
       <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px;">
         <div class="card">
-          <h2 class="section" style="margin-top:0;">モデル使用内訳（直近500件）</h2>
+          <h2 class="section" style="margin-top:0;">${I18n.t("dashboard.model_usage")}</h2>
           ${barRow(modelTally, sampleMessages.length)}
         </div>
         <div class="card">
-          <h2 class="section" style="margin-top:0;">データ層内訳（直近500件）</h2>
+          <h2 class="section" style="margin-top:0;">${I18n.t("dashboard.data_layer_usage")}</h2>
           ${barRow(layerTally, sampleMessages.length)}
         </div>
       </div>
 
-      <h2 class="section">最近のセッション</h2>
+      <h2 class="section">${I18n.t("dashboard.recent_sessions")}</h2>
       ${recentSessions.length ? `
       <div class="tablewrap"><table class="dtable">
-        <thead><tr><th>日時</th><th>ニックネーム</th><th>お立場</th><th></th></tr></thead>
+        <thead><tr><th>${I18n.t("dashboard.th.datetime")}</th><th>${I18n.t("dashboard.th.nickname")}</th><th>${I18n.t("dashboard.th.role_tag")}</th><th></th></tr></thead>
         <tbody>${recentSessions.map((s) => `
           <tr>
             <td>${Admin.fmtDate(s.created_at)}</td>
             <td>${Admin.esc(s.nickname || "—")}</td>
             <td>${Admin.esc(s.role_tag || "—")}</td>
-            <td><a href="conversations.html?session=${encodeURIComponent(s.id)}">会話を見る →</a></td>
+            <td><a href="conversations.html?session=${encodeURIComponent(s.id)}">${I18n.t("common.view_conversation")}</a></td>
           </tr>`).join("")}</tbody>
-      </table></div>` : `<div class="empty"><div class="big">💬</div>まだ会話がありません</div>`}
+      </table></div>` : `<div class="empty"><div class="big">💬</div>${I18n.t("dashboard.no_conversations")}</div>`}
 
-      <h2 class="section">対応が必要なフィードバック（👎）</h2>
+      <h2 class="section">${I18n.t("dashboard.ng_feedback_title")}</h2>
       ${recentNg.length ? `
       <div class="tablewrap"><table class="dtable">
-        <thead><tr><th>日時</th><th>発言者</th><th>該当回答</th><th>コメント</th><th></th></tr></thead>
+        <thead><tr><th>${I18n.t("dashboard.th.datetime")}</th><th>${I18n.t("dashboard.th.speaker")}</th><th>${I18n.t("dashboard.th.answer")}</th><th>${I18n.t("dashboard.th.comment")}</th><th></th></tr></thead>
         <tbody>${recentNg.map((f) => {
           const m = msgById[f.message_id];
           return `<tr>
@@ -139,13 +145,13 @@
             <td>${Admin.esc((m && (m.nickname || m.role_tag)) || "—")}</td>
             <td style="max-width:320px;">${Admin.esc((m && m.content || "").slice(0, 90))}${m && m.content && m.content.length > 90 ? "…" : ""}</td>
             <td>${Admin.esc(f.comment || "—")}</td>
-            <td>${m ? `<a href="conversations.html?session=${encodeURIComponent(m.session_id)}">会話を見る →</a>` : "—"}</td>
+            <td>${m ? `<a href="conversations.html?session=${encodeURIComponent(m.session_id)}">${I18n.t("common.view_conversation")}</a>` : "—"}</td>
           </tr>`;
         }).join("")}</tbody>
-      </table></div>` : `<div class="empty"><div class="big">✓</div>未対応のネガティブフィードバックはありません</div>`}
+      </table></div>` : `<div class="empty"><div class="big">✓</div>${I18n.t("dashboard.ng_feedback_none")}</div>`}
     `;
   } catch (err) {
-    content.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+    content.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
   }
 })();
 </script>

@@ -4,105 +4,114 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ナレッジ | AMASAS Admin</title>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="shared/admin.css">
 </head>
 <body>
+<script src="shared/i18n.js"></script>
 <script src="shared/admin.js"></script>
 <script>
 // Schema-driven editor for the 8 knowledge.* tables (columns/constraints
 // mirrored from supabase/migrations/0003_amasas_schema.sql). One generic
 // table+form component instead of 8 bespoke ones.
+//
+// label/note here are {ja, en} pairs (not I18n dictionary keys) since this
+// config already IS a per-field dictionary -- L() below just picks the
+// current language out of whichever pair is passed in.
+const L = (pair) => pair[I18n.getLang()];
+
 const TABLES = [
-  { key: "measures", label: "物差し・出典台帳", pk: "measure_key", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "measure_key", label: "キー", type: "text", required: true },
-    { name: "name_ja", label: "名称", type: "text", required: true },
-    { name: "definition_ja", label: "定義", type: "textarea", required: true },
-    { name: "caveat_ja", label: "注意点", type: "textarea" },
-    { name: "priority", label: "優先度", type: "int" },
-    { name: "publisher", label: "発行元", type: "text" },
-    { name: "url", label: "URL", type: "text" },
-    { name: "verification", label: "検証状態", type: "select", options: ["verified", "partially_verified", "unverified", "circular", "private", "internal"] },
-    { name: "verified_on", label: "検証日", type: "date" },
+  { key: "measures", label: { ja: "物差し・出典台帳", en: "Measures & Sources" }, pk: "measure_key", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "measure_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "name_ja", label: { ja: "名称", en: "Name" }, type: "text", required: true },
+    { name: "definition_ja", label: { ja: "定義", en: "Definition" }, type: "textarea", required: true },
+    { name: "caveat_ja", label: { ja: "注意点", en: "Caveat" }, type: "textarea" },
+    { name: "priority", label: { ja: "優先度", en: "Priority" }, type: "int" },
+    { name: "publisher", label: { ja: "発行元", en: "Publisher" }, type: "text" },
+    { name: "url", label: { ja: "URL", en: "URL" }, type: "text" },
+    { name: "verification", label: { ja: "検証状態", en: "Verification status" }, type: "select", options: ["verified", "partially_verified", "unverified", "circular", "private", "internal"] },
+    { name: "verified_on", label: { ja: "検証日", en: "Verified on" }, type: "date" },
   ]},
-  { key: "town_facts", label: "公式事実", pk: "fact_key", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "fact_key", label: "キー", type: "text", required: true },
-    { name: "statement_ja", label: "内容", type: "textarea", required: true },
-    { name: "measure_key", label: "関連する物差しキー", type: "text" },
-    { name: "source_ja", label: "出典", type: "text", required: true },
-    { name: "year_label", label: "年ラベル", type: "text" },
-    { name: "priority", label: "優先度", type: "int" },
-    { name: "source_ref", label: "出典参照", type: "text" },
-    { name: "valid_from", label: "有効開始日", type: "date" },
-    { name: "kind", label: "種別", type: "select", options: ["fact", "unknown", "assumption"], required: true },
-    { name: "caveat_ja", label: "注意点", type: "textarea" },
+  { key: "town_facts", label: { ja: "公式事実", en: "Official Facts" }, pk: "fact_key", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "fact_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "statement_ja", label: { ja: "内容", en: "Statement" }, type: "textarea", required: true },
+    { name: "measure_key", label: { ja: "関連する物差しキー", en: "Related measure key" }, type: "text" },
+    { name: "source_ja", label: { ja: "出典", en: "Source" }, type: "text", required: true },
+    { name: "year_label", label: { ja: "年ラベル", en: "Year label" }, type: "text" },
+    { name: "priority", label: { ja: "優先度", en: "Priority" }, type: "int" },
+    { name: "source_ref", label: { ja: "出典参照", en: "Source reference" }, type: "text" },
+    { name: "valid_from", label: { ja: "有効開始日", en: "Valid from" }, type: "date" },
+    { name: "kind", label: { ja: "種別", en: "Kind" }, type: "select", options: ["fact", "unknown", "assumption"], required: true },
+    { name: "caveat_ja", label: { ja: "注意点", en: "Caveat" }, type: "textarea" },
   ]},
-  { key: "strategy_frames", label: "公式フレーム", pk: "frame", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "frame", label: "フレーム名", type: "text", required: true },
-    { name: "industries_ja", label: "対象産業", type: "textarea", required: true },
-    { name: "policy_stance_ja", label: "政策スタンス", type: "textarea", required: true },
-    { name: "guardrail_ja", label: "ガードレール", type: "textarea", required: true },
-    { name: "kpi_ja", label: "KPI", type: "text" },
-    { name: "related_tables", label: "関連テーブル（カンマ区切り）", type: "array" },
-    { name: "source_ref", label: "出典参照", type: "text" },
+  { key: "strategy_frames", label: { ja: "公式フレーム", en: "Official Frames" }, pk: "frame", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "frame", label: { ja: "フレーム名", en: "Frame name" }, type: "text", required: true },
+    { name: "industries_ja", label: { ja: "対象産業", en: "Target industries" }, type: "textarea", required: true },
+    { name: "policy_stance_ja", label: { ja: "政策スタンス", en: "Policy stance" }, type: "textarea", required: true },
+    { name: "guardrail_ja", label: { ja: "ガードレール", en: "Guardrail" }, type: "textarea", required: true },
+    { name: "kpi_ja", label: { ja: "KPI", en: "KPI" }, type: "text" },
+    { name: "related_tables", label: { ja: "関連テーブル（カンマ区切り）", en: "Related tables (comma-separated)" }, type: "array" },
+    { name: "source_ref", label: { ja: "出典参照", en: "Source reference" }, type: "text" },
   ]},
-  { key: "strategy_pillars", label: "12戦略", pk: "pillar_no", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "pillar_no", label: "戦略番号", type: "int", required: true },
-    { name: "pillar_ja", label: "戦略名", type: "text", required: true },
-    { name: "aim_ja", label: "狙い", type: "textarea", required: true },
-    { name: "key_actions_ja", label: "主要施策", type: "textarea", required: true },
-    { name: "targets_ja", label: "目標", type: "textarea", required: true },
-    { name: "actors_ja", label: "主体", type: "text", required: true },
-    { name: "source_ref", label: "出典参照", type: "text" },
+  { key: "strategy_pillars", label: { ja: "12戦略", en: "12 Strategic Pillars" }, pk: "pillar_no", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "pillar_no", label: { ja: "戦略番号", en: "Pillar number" }, type: "int", required: true },
+    { name: "pillar_ja", label: { ja: "戦略名", en: "Pillar name" }, type: "text", required: true },
+    { name: "aim_ja", label: { ja: "狙い", en: "Aim" }, type: "textarea", required: true },
+    { name: "key_actions_ja", label: { ja: "主要施策", en: "Key actions" }, type: "textarea", required: true },
+    { name: "targets_ja", label: { ja: "目標", en: "Targets" }, type: "textarea", required: true },
+    { name: "actors_ja", label: { ja: "主体", en: "Actors" }, type: "text", required: true },
+    { name: "source_ref", label: { ja: "出典参照", en: "Source reference" }, type: "text" },
   ]},
-  { key: "involvement_paths", label: "関わりしろ", pk: "path_key", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "path_key", label: "キー", type: "text", required: true },
-    { name: "path_ja", label: "名称", type: "text", required: true },
-    { name: "description_ja", label: "説明", type: "textarea", required: true },
-    { name: "target_profile_ja", label: "対象者像", type: "text" },
-    { name: "pillar_no", label: "関連戦略番号", type: "int" },
-    { name: "kpi_ja", label: "KPI", type: "text" },
-    { name: "source_ref", label: "出典参照", type: "text" },
+  { key: "involvement_paths", label: { ja: "関わりしろ", en: "Involvement Paths" }, pk: "path_key", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "path_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "path_ja", label: { ja: "名称", en: "Name" }, type: "text", required: true },
+    { name: "description_ja", label: { ja: "説明", en: "Description" }, type: "textarea", required: true },
+    { name: "target_profile_ja", label: { ja: "対象者像", en: "Target profile" }, type: "text" },
+    { name: "pillar_no", label: { ja: "関連戦略番号", en: "Related pillar number" }, type: "int" },
+    { name: "kpi_ja", label: { ja: "KPI", en: "KPI" }, type: "text" },
+    { name: "source_ref", label: { ja: "出典参照", en: "Source reference" }, type: "text" },
   ]},
-  { key: "map_assets", label: "地図・図面", pk: "asset_key", note: "public_url がある行は、回答に画像として直接表示されます。", fields: [
-    { name: "asset_key", label: "キー", type: "text", required: true },
-    { name: "doc_ref", label: "出典文書", type: "text", required: true },
-    { name: "title_ja", label: "タイトル", type: "text", required: true },
-    { name: "page", label: "ページ", type: "int", required: true },
-    { name: "public_url", label: "画像URL", type: "text" },
-    { name: "description_ja", label: "説明", type: "textarea", required: true },
-    { name: "caveat_ja", label: "注意点", type: "textarea" },
+  { key: "map_assets", label: { ja: "地図・図面", en: "Maps & Diagrams" }, pk: "asset_key", note: { ja: "public_url がある行は、回答に画像として直接表示されます。", en: "Rows with a public_url are shown as images directly in answers." }, fields: [
+    { name: "asset_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "doc_ref", label: { ja: "出典文書", en: "Source document" }, type: "text", required: true },
+    { name: "title_ja", label: { ja: "タイトル", en: "Title" }, type: "text", required: true },
+    { name: "page", label: { ja: "ページ", en: "Page" }, type: "int", required: true },
+    { name: "public_url", label: { ja: "画像URL", en: "Image URL" }, type: "text" },
+    { name: "description_ja", label: { ja: "説明", en: "Description" }, type: "textarea", required: true },
+    { name: "caveat_ja", label: { ja: "注意点", en: "Caveat" }, type: "textarea" },
   ]},
-  { key: "reading_playbook", label: "回答の組み立て方", pk: "entry_key", note: "l4層のプロンプトに注入されます。", fields: [
-    { name: "entry_key", label: "キー", type: "text", required: true },
-    { name: "kind", label: "種別", type: "select", options: ["observation", "interpretation", "pattern"], required: true },
-    { name: "name_ja", label: "名称", type: "text", required: true },
-    { name: "question_ja", label: "想定質問", type: "text" },
-    { name: "how_ja", label: "手順", type: "textarea", required: true },
-    { name: "example_ja", label: "例", type: "textarea" },
-    { name: "caveat_ja", label: "注意点", type: "textarea" },
-    { name: "moves", label: "手法タグ（カンマ区切り）", type: "array" },
-    { name: "frame_hint_ja", label: "フレームのヒント", type: "text" },
-    { name: "output_shape_ja", label: "出力の型", type: "text" },
-    { name: "source_ref", label: "出典参照", type: "text", required: true },
-    { name: "priority", label: "優先度", type: "int" },
+  { key: "reading_playbook", label: { ja: "回答の組み立て方", en: "Answer Playbook" }, pk: "entry_key", note: { ja: "l4層のプロンプトに注入されます。", en: "Injected into the l4 prompt layer." }, fields: [
+    { name: "entry_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "kind", label: { ja: "種別", en: "Kind" }, type: "select", options: ["observation", "interpretation", "pattern"], required: true },
+    { name: "name_ja", label: { ja: "名称", en: "Name" }, type: "text", required: true },
+    { name: "question_ja", label: { ja: "想定質問", en: "Anticipated question" }, type: "text" },
+    { name: "how_ja", label: { ja: "手順", en: "How" }, type: "textarea", required: true },
+    { name: "example_ja", label: { ja: "例", en: "Example" }, type: "textarea" },
+    { name: "caveat_ja", label: { ja: "注意点", en: "Caveat" }, type: "textarea" },
+    { name: "moves", label: { ja: "手法タグ（カンマ区切り）", en: "Technique tags (comma-separated)" }, type: "array" },
+    { name: "frame_hint_ja", label: { ja: "フレームのヒント", en: "Frame hint" }, type: "text" },
+    { name: "output_shape_ja", label: { ja: "出力の型", en: "Output shape" }, type: "text" },
+    { name: "source_ref", label: { ja: "出典参照", en: "Source reference" }, type: "text", required: true },
+    { name: "priority", label: { ja: "優先度", en: "Priority" }, type: "int" },
   ]},
-  { key: "source_registry", label: "出典台帳", pk: "source_key", note: "現在AIプロンプトには注入されません（出典管理用）。", fields: [
-    { name: "source_key", label: "キー", type: "text", required: true },
-    { name: "name_ja", label: "名称", type: "text", required: true },
-    { name: "publisher", label: "発行元", type: "text" },
-    { name: "published_on", label: "発行日", type: "date" },
-    { name: "url", label: "URL", type: "text" },
-    { name: "verification", label: "検証状態", type: "select", options: ["verified", "unverified", "circular", "private", "unavailable"], required: true },
-    { name: "verified_on", label: "検証日", type: "date" },
-    { name: "note_ja", label: "備考", type: "textarea" },
+  { key: "source_registry", label: { ja: "出典台帳", en: "Source Registry" }, pk: "source_key", note: { ja: "現在AIプロンプトには注入されません（出典管理用）。", en: "Not currently injected into the AI prompt (source management only)." }, fields: [
+    { name: "source_key", label: { ja: "キー", en: "Key" }, type: "text", required: true },
+    { name: "name_ja", label: { ja: "名称", en: "Name" }, type: "text", required: true },
+    { name: "publisher", label: { ja: "発行元", en: "Publisher" }, type: "text" },
+    { name: "published_on", label: { ja: "発行日", en: "Published on" }, type: "date" },
+    { name: "url", label: { ja: "URL", en: "URL" }, type: "text" },
+    { name: "verification", label: { ja: "検証状態", en: "Verification status" }, type: "select", options: ["verified", "unverified", "circular", "private", "unavailable"], required: true },
+    { name: "verified_on", label: { ja: "検証日", en: "Verified on" }, type: "date" },
+    { name: "note_ja", label: { ja: "備考", en: "Note" }, type: "textarea" },
   ]},
 ];
 
 (async function () {
-  const ctx = await Admin.renderShell({ page: "knowledge_view", title: "ナレッジベース", sub: "AIの回答（l4データ層）に注入される町の公式コンテンツを編集します" });
+  document.title = I18n.t("knowledge.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "knowledge_view", title: I18n.t("knowledge.title"), sub: I18n.t("knowledge.sub") });
   if (!ctx) return;
   const canEdit = Admin.can(ctx.role, "knowledge_edit");
   const content = document.getElementById("content");
@@ -116,7 +125,7 @@ const TABLES = [
   const tabsEl = document.getElementById("tabs");
   TABLES.forEach((t) => {
     const b = document.createElement("button");
-    b.textContent = t.label;
+    b.textContent = L(t.label);
     b.className = t.key === active ? "active" : "";
     b.addEventListener("click", () => { active = t.key; renderTab(); });
     b.dataset.key = t.key;
@@ -131,30 +140,30 @@ const TABLES = [
     setActiveTabButton();
     const table = TABLES.find((t) => t.key === active);
     const body = document.getElementById("tablebody");
-    body.innerHTML = `<div class="loading">読み込み中…</div>`;
+    body.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
     try {
       const orderCol = table.fields.find((f) => f.name === "priority") ? "priority" : table.pk;
       const rows = await Admin.rpc("amasas_query", { query: `select * from knowledge.${table.key} order by ${orderCol}` });
-      if (!Array.isArray(rows)) throw new Error((rows && rows.error) || "取得に失敗しました");
+      if (!Array.isArray(rows)) throw new Error((rows && rows.error) || I18n.t("common.fetch_failed"));
 
       const cols = table.fields.slice(0, 5); // keep the list view scannable; full record is in the edit form
       body.innerHTML = `
         <div class="toolbar">
-          <div class="sub" style="font-size:12px;color:var(--ink-2);">${Admin.esc(table.note || "")}</div>
+          <div class="sub" style="font-size:12px;color:var(--ink-2);">${Admin.esc(L(table.note) || "")}</div>
           <div class="spacer"></div>
-          ${canEdit ? `<button class="btn primary sm" id="addrow">+ 新規追加</button>` : ""}
+          ${canEdit ? `<button class="btn primary sm" id="addrow">${I18n.t("knowledge.add_row")}</button>` : ""}
         </div>
         ${rows.length ? `
         <div class="tablewrap"><table class="dtable">
-          <thead><tr>${cols.map((c) => `<th>${Admin.esc(c.label)}</th>`).join("")}<th></th></tr></thead>
+          <thead><tr>${cols.map((c) => `<th>${Admin.esc(L(c.label))}</th>`).join("")}<th></th></tr></thead>
           <tbody>${rows.map((r, i) => `<tr data-i="${i}">
             ${cols.map((c) => `<td>${Admin.esc(String(r[c.name] ?? "—")).slice(0, 80)}</td>`).join("")}
             <td style="white-space:nowrap;">
-              <button class="btn ghost sm" data-act="view" data-i="${i}">詳細</button>
-              ${canEdit ? `<button class="btn ghost sm" data-act="edit" data-i="${i}">編集</button><button class="btn danger sm" data-act="del" data-i="${i}">削除</button>` : ""}
+              <button class="btn ghost sm" data-act="view" data-i="${i}">${I18n.t("common.details")}</button>
+              ${canEdit ? `<button class="btn ghost sm" data-act="edit" data-i="${i}">${I18n.t("common.edit")}</button><button class="btn danger sm" data-act="del" data-i="${i}">${I18n.t("common.delete")}</button>` : ""}
             </td>
           </tr>`).join("")}</tbody>
-        </table></div>` : `<div class="empty"><div class="big">📄</div>データがありません</div>`}
+        </table></div>` : `<div class="empty"><div class="big">📄</div>${I18n.t("knowledge.no_rows")}</div>`}
       `;
 
       if (canEdit) document.getElementById("addrow").addEventListener("click", () => openForm(table, null));
@@ -167,22 +176,22 @@ const TABLES = [
         });
       });
     } catch (err) {
-      body.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+      body.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
     }
   }
 
   async function deleteRow(table, row) {
     const pkVal = row[table.pk];
     const ok = await Admin.confirmModal({
-      title: "この行を削除しますか？",
-      body: `<p style="font-size:13px;color:var(--ink-2);">knowledge.${Admin.esc(table.key)} / ${Admin.esc(table.pk)} = <span class="mono">${Admin.esc(pkVal)}</span><br>この操作は取り消せません。監査ログに記録されます。</p>`,
-      confirmLabel: "削除する",
+      title: I18n.t("knowledge.delete_row_title"),
+      body: `<p style="font-size:13px;color:var(--ink-2);">${I18n.t("knowledge.delete_row_body", { table: Admin.esc(table.key), pk: Admin.esc(table.pk), pkVal: `<span class="mono">${Admin.esc(pkVal)}</span>` })}</p>`,
+      confirmLabel: I18n.t("knowledge.delete_confirm"),
       danger: true,
     });
     if (!ok) return;
     try {
       await Admin.rpc("admin_knowledge_delete", { table_name: table.key, pk_value: String(pkVal) });
-      Admin.toast("削除しました", "ok");
+      Admin.toast(I18n.t("knowledge.delete_done"), "ok");
       renderTab();
     } catch (err) {
       Admin.toast(err.message, "err");
@@ -194,11 +203,11 @@ const TABLES = [
     backdrop.className = "modal-backdrop";
     const isNew = !row;
     backdrop.innerHTML = `<div class="modal" style="max-width:640px;">
-      <h3>${isNew ? "新規追加" : readOnly ? "詳細" : "編集"} — ${Admin.esc(table.label)}</h3>
+      <h3>${isNew ? I18n.t("knowledge.modal.new") : readOnly ? I18n.t("knowledge.modal.view") : I18n.t("knowledge.modal.edit")} — ${Admin.esc(L(table.label))}</h3>
       <div id="formfields" class="formgrid"></div>
       <div class="actions">
-        <button class="btn ghost" data-a="cancel" type="button">閉じる</button>
-        ${!readOnly ? `<button class="btn primary" data-a="save" type="button">保存</button>` : ""}
+        <button class="btn ghost" data-a="cancel" type="button">${I18n.t("common.close")}</button>
+        ${!readOnly ? `<button class="btn primary" data-a="save" type="button">${I18n.t("common.save")}</button>` : ""}
       </div>
     </div>`;
     document.body.appendChild(backdrop);
@@ -228,7 +237,7 @@ const TABLES = [
       } else {
         inputHtml = `<input type="text" data-f="${f.name}" value="${Admin.esc(val ?? "")}" ${f.name === table.pk && !isNew ? "disabled" : dis} />`;
       }
-      wrap.innerHTML = `<label>${Admin.esc(f.label)}${f.required ? " *" : ""}</label>${inputHtml}`;
+      wrap.innerHTML = `<label>${Admin.esc(L(f.label))}${f.required ? " *" : ""}</label>${inputHtml}`;
       fieldsEl.appendChild(wrap);
     });
 
@@ -246,10 +255,10 @@ const TABLES = [
           else data[f.name] = v;
         });
         const missing = table.fields.filter((f) => f.required && (data[f.name] === null || data[f.name] === undefined || data[f.name] === ""));
-        if (missing.length) { Admin.toast(`必須項目が未入力です: ${missing.map((f) => f.label).join("、")}`, "err"); return; }
+        if (missing.length) { Admin.toast(I18n.t("knowledge.missing_required", { fields: missing.map((f) => L(f.label)).join(I18n.t("common.list_separator")) }), "err"); return; }
         try {
           await Admin.rpc("admin_knowledge_upsert", { table_name: table.key, row_data: data });
-          Admin.toast("保存しました", "ok");
+          Admin.toast(I18n.t("knowledge.save_done"), "ok");
           backdrop.remove();
           renderTab();
         } catch (err) {

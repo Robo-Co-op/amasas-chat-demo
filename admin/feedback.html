@@ -4,16 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>フィードバック | AMASAS Admin</title>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="shared/admin.css">
 </head>
 <body>
+<script src="shared/i18n.js"></script>
 <script src="shared/admin.js"></script>
 <script>
 (async function () {
-  const ctx = await Admin.renderShell({ page: "feedback", title: "フィードバック", sub: "回答への 👍 / 👎 評価とコメントの一覧" });
+  document.title = I18n.t("feedback.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "feedback", title: I18n.t("feedback.title"), sub: I18n.t("feedback.sub") });
   if (!ctx) return;
   const content = document.getElementById("content");
 
@@ -22,17 +25,17 @@
   content.innerHTML = `
     <div class="toolbar">
       <select id="f-verdict" style="max-width:160px;">
-        <option value="">すべて</option>
-        <option value="ok">👍 のみ</option>
-        <option value="ng">👎 のみ</option>
+        <option value="">${I18n.t("feedback.filter.all")}</option>
+        <option value="ok">${I18n.t("feedback.filter.ok_only")}</option>
+        <option value="ng">${I18n.t("feedback.filter.ng_only")}</option>
       </select>
       <div class="spacer"></div>
     </div>
-    <div id="list"><div class="loading">読み込み中…</div></div>
+    <div id="list"><div class="loading">${I18n.t("common.loading")}</div></div>
     <div class="pager">
       <span id="pageinfo"></span>
-      <button class="btn ghost sm" id="prev">← 前へ</button>
-      <button class="btn ghost sm" id="next">次へ →</button>
+      <button class="btn ghost sm" id="prev">${I18n.t("common.prev")}</button>
+      <button class="btn ghost sm" id="next">${I18n.t("common.next")}</button>
     </div>
   `;
   document.getElementById("f-verdict").addEventListener("change", (e) => { state.verdict = e.target.value; state.offset = 0; load(); });
@@ -41,7 +44,7 @@
 
   async function load() {
     const list = document.getElementById("list");
-    list.innerHTML = `<div class="loading">読み込み中…</div>`;
+    list.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
     try {
       const filter = state.verdict ? `verdict=eq.${state.verdict}&` : "";
       const [rows, total] = await Promise.all([
@@ -57,14 +60,14 @@
       }
 
       document.getElementById("pageinfo").textContent = total
-        ? `${state.offset + 1}–${Math.min(state.offset + state.limit, total)} / ${total.toLocaleString("ja-JP")} 件`
-        : "0 件";
+        ? I18n.t("common.count_range", { from: state.offset + 1, to: Math.min(state.offset + state.limit, total), total: Admin.fmtNum(total) })
+        : I18n.t("common.count_zero");
       document.getElementById("prev").disabled = state.offset === 0;
       document.getElementById("next").disabled = state.offset + state.limit >= total;
 
       list.innerHTML = rows.length ? `
         <div class="tablewrap"><table class="dtable">
-          <thead><tr><th>日時</th><th>評価</th><th>発言者</th><th>該当回答</th><th>コメント</th><th></th></tr></thead>
+          <thead><tr><th>${I18n.t("dashboard.th.datetime")}</th><th>${I18n.t("feedback.th.verdict")}</th><th>${I18n.t("dashboard.th.speaker")}</th><th>${I18n.t("dashboard.th.answer")}</th><th>${I18n.t("dashboard.th.comment")}</th><th></th></tr></thead>
           <tbody>${rows.map((f) => {
             const m = msgById[f.message_id];
             return `<tr>
@@ -73,13 +76,13 @@
               <td>${Admin.esc((m && (m.nickname || m.role_tag)) || "—")}</td>
               <td style="max-width:340px;">${Admin.esc((m && m.content || "").slice(0, 100))}${m && m.content && m.content.length > 100 ? "…" : ""}</td>
               <td>${Admin.esc(f.comment || "—")}</td>
-              <td>${m ? `<a href="conversations.html?session=${encodeURIComponent(m.session_id)}">会話を見る →</a>` : "—"}</td>
+              <td>${m ? `<a href="conversations.html?session=${encodeURIComponent(m.session_id)}">${I18n.t("common.view_conversation")}</a>` : "—"}</td>
             </tr>`;
           }).join("")}</tbody>
         </table></div>
-      ` : `<div class="empty"><div class="big">🗳️</div>該当するフィードバックがありません</div>`;
+      ` : `<div class="empty"><div class="big">🗳️</div>${I18n.t("feedback.no_results")}</div>`;
     } catch (err) {
-      list.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+      list.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
     }
   }
   load();
