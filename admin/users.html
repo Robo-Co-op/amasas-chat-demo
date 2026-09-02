@@ -18,6 +18,7 @@ const CAPS = [
   ["ナレッジベースの閲覧", true, true, true, true],
   ["ナレッジベースの編集", true, true, true, false],
   ["管理者の招待・ロール変更・無効化", true, "※", false, false],
+  ["管理者の削除（元に戻せません）", true, false, false, false],
   ["設定（メンテナンスモード等）の変更", true, true, false, false],
   ["監査ログの閲覧", true, true, false, false],
 ];
@@ -96,12 +97,21 @@ const CAPS = [
         </table></div>
       `;
       const tbody = document.getElementById("users-tbody");
+      const isOwner = ctx.role === "owner";
       users.forEach((u) => {
         const tr = document.createElement("tr");
         const lockedForCaller = ctx.role === "admin" && (u.role === "owner" || u.role === "admin") && u.id !== ctx.profile.id;
+        const isSelf = u.id === ctx.profile.id;
         const roleCell = canManage && !lockedForCaller
           ? `<select data-id="${u.id}" class="role-select">${ROLES.map((r) => `<option value="${r}" ${r === u.role ? "selected" : ""}>${r}</option>`).join("")}</select>`
           : `<span class="badge role-${Admin.esc(u.role)}">${Admin.esc(u.role)}</span>`;
+        const actions = [];
+        if (canManage && !lockedForCaller) {
+          actions.push(`<button class="btn ghost sm" data-act="toggle" data-id="${u.id}" data-active="${u.is_active}" data-role="${u.role}">${u.is_active ? "無効化" : "有効化"}</button>`);
+        }
+        if (isOwner && !isSelf) {
+          actions.push(`<button class="btn ghost sm danger" data-act="delete" data-id="${u.id}" data-email="${Admin.esc(u.email)}">削除</button>`);
+        }
         tr.innerHTML = `
           <td>${Admin.esc(u.email)}</td>
           <td>${Admin.esc(u.display_name || "—")}</td>
@@ -109,7 +119,7 @@ const CAPS = [
           <td>${u.is_active ? '<span class="badge ok">有効</span>' : '<span class="badge ng">無効</span>'}</td>
           <td>${Admin.fmtDate(u.last_login_at)}</td>
           <td>${Admin.fmtDate(u.created_at)}</td>
-          ${canManage && !lockedForCaller ? `<td><button class="btn ghost sm" data-act="toggle" data-id="${u.id}" data-active="${u.is_active}" data-role="${u.role}">${u.is_active ? "無効化" : "有効化"}</button></td>` : canManage ? "<td></td>" : ""}
+          ${canManage ? `<td><div style="display:flex;gap:6px;">${actions.join("")}</div></td>` : ""}
         `;
         tbody.appendChild(tr);
       });
@@ -141,6 +151,31 @@ const CAPS = [
             try {
               await Admin.rpc("admin_set_user", { target_id: btn.dataset.id, new_role: btn.dataset.role, new_active: nextActive });
               Admin.toast("更新しました", "ok");
+              await loadList();
+            } catch (err) {
+              Admin.toast(err.message, "err");
+            }
+          });
+        });
+        tbody.querySelectorAll('button[data-act="delete"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const ok = await Admin.confirmModal({
+              title: `${btn.dataset.email} を削除しますか？`,
+              body: `<p style="font-size:13px;color:var(--ink-2);">アカウントと管理者権限が完全に削除されます。この操作は元に戻せません。無効化と違い、後で同じロールに戻すことはできません。</p>`,
+              confirmLabel: "完全に削除する",
+              danger: true,
+            });
+            if (!ok) return;
+            try {
+              const s = await Admin.ensureToken();
+              const r = await fetch("/api/admin/delete-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
+                body: JSON.stringify({ target_id: btn.dataset.id }),
+              });
+              const data = await r.json();
+              if (!r.ok) throw new Error(data.error || "削除に失敗しました");
+              Admin.toast(data.warning || "削除しました", data.warning ? "err" : "ok");
               await loadList();
             } catch (err) {
               Admin.toast(err.message, "err");

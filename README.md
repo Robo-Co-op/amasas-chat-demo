@@ -90,7 +90,7 @@ done
 - `admin/settings.html` — メンテナンスモードの切替 + 実行時構成の診断表示
 - `admin/audit.html` — 監査ログ（knowledge編集・管理者ロール変更を自動記録）
 
-権限はDB側（RLSポリシー + `admin.*`関数内のロールチェック）で強制されます。UI側の非表示はあくまで補助であり、実際の境界は`supabase/migrations/0006_admin.sql`のSQLです。
+権限はDB側（RLSポリシー + `admin.*`関数内のロールチェック）で強制されます。UI側の非表示はあくまで補助であり、実際の境界は`supabase/migrations/0006_admin.sql`・`0007_admin_delete_user.sql`のSQLです。owner は他の管理者を完全に削除できます（`admin_delete_user` — 自分自身は削除不可、admin ロールには許可されていません）。`admin_set_user`の無効化（アカウントは残る）とは別の操作です。
 
 ### マイグレーションの自動適用（GitHub Actions）
 
