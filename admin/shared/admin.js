@@ -18,13 +18,13 @@ const Admin = (() => {
   };
 
   const NAV = [
-    { key: "dashboard", href: "index.html", label: "ダッシュボード", icon: "DB" },
-    { key: "conversations", href: "conversations.html", label: "会話ログ", icon: "CV" },
-    { key: "feedback", href: "feedback.html", label: "フィードバック", icon: "FB" },
-    { key: "knowledge_view", href: "knowledge.html", label: "ナレッジ", icon: "KB" },
-    { key: "users", href: "users.html", label: "管理者", icon: "US" },
-    { key: "settings", href: "settings.html", label: "設定", icon: "ST" },
-    { key: "audit", href: "audit.html", label: "監査ログ", icon: "AU" },
+    { key: "dashboard", href: "index.html", labelKey: "nav.dashboard", icon: "DB" },
+    { key: "conversations", href: "conversations.html", labelKey: "nav.conversations", icon: "CV" },
+    { key: "feedback", href: "feedback.html", labelKey: "nav.feedback", icon: "FB" },
+    { key: "knowledge_view", href: "knowledge.html", labelKey: "nav.knowledge", icon: "KB" },
+    { key: "users", href: "users.html", labelKey: "nav.users", icon: "US" },
+    { key: "settings", href: "settings.html", labelKey: "nav.settings", icon: "ST" },
+    { key: "audit", href: "audit.html", labelKey: "nav.audit", icon: "AU" },
   ];
 
   // ---------------- session/token storage ----------------
@@ -176,8 +176,14 @@ const Admin = (() => {
 
   function fmtDate(iso) {
     if (!iso) return "—";
-    try { return new Date(iso).toLocaleString("ja-JP", { dateStyle: "medium", timeStyle: "short" }); }
+    const locale = I18n.getLang() === "en" ? "en-US" : "ja-JP";
+    try { return new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }); }
     catch { return iso; }
+  }
+
+  function fmtNum(n) {
+    const locale = I18n.getLang() === "en" ? "en-US" : "ja-JP";
+    return (n ?? 0).toLocaleString(locale);
   }
 
   function can(role, key) {
@@ -220,6 +226,21 @@ const Admin = (() => {
 
   // ---------------- shell ----------------
 
+  function langSwitcherHtml() {
+    const lang = I18n.getLang();
+    return `
+      <div class="langswitch">
+        <button type="button" data-lang="ja" class="${lang === "ja" ? "active" : ""}">日本語</button>
+        <button type="button" data-lang="en" class="${lang === "en" ? "active" : ""}">English</button>
+      </div>`;
+  }
+
+  function wireLangSwitcher(root) {
+    (root || document).querySelectorAll("[data-lang]").forEach((btn) => {
+      btn.addEventListener("click", () => I18n.setLang(btn.dataset.lang));
+    });
+  }
+
   function shellHtml({ role, email, title, sub }) {
     return `
     <div id="shell">
@@ -227,20 +248,21 @@ const Admin = (() => {
         <div class="brand">AMASAS<small>Admin Console</small></div>
         <nav id="nav"></nav>
         <div class="who">
+          ${langSwitcherHtml()}
           <div class="email">${esc(email)}</div>
           <span class="role badge role-${esc(role)}">${esc(role)}</span>
-          <button id="signout" type="button">ログアウト</button>
+          <button id="signout" type="button">${I18n.t("shell.signout")}</button>
         </div>
       </aside>
       <div id="main">
         <header id="topbar">
           <div>
-            <button id="mobiletoggle" type="button">☰ メニュー</button>
+            <button id="mobiletoggle" type="button">${I18n.t("shell.menu")}</button>
             <h1>${esc(title)}</h1>
             ${sub ? `<div class="sub">${esc(sub)}</div>` : ""}
           </div>
         </header>
-        <section id="content"><div class="loading">読み込み中…</div></section>
+        <section id="content"><div class="loading">${I18n.t("common.loading")}</div></section>
       </div>
     </div>`;
   }
@@ -248,8 +270,9 @@ const Admin = (() => {
   function noAccessHtml() {
     return `<div class="center-page"><div class="card authcard">
       <div class="brand">AMASAS<small>Admin Console</small></div>
-      <p class="lede">ログインは成功しましたが、この管理画面へのアクセス権がありません。オーナーに管理者登録を依頼してください。</p>
-      <button class="btn ghost" id="na-signout" type="button">サインアウト</button>
+      ${langSwitcherHtml()}
+      <p class="lede">${I18n.t("shell.noaccess_lede")}</p>
+      <button class="btn ghost" id="na-signout" type="button">${I18n.t("shell.signout")}</button>
     </div></div>`;
   }
 
@@ -275,6 +298,7 @@ const Admin = (() => {
     if (!profile) {
       document.body.innerHTML = noAccessHtml();
       document.getElementById("na-signout").addEventListener("click", signOut);
+      wireLangSwitcher();
       return null;
     }
 
@@ -287,11 +311,12 @@ const Admin = (() => {
       const a = document.createElement("a");
       a.className = "navlink" + (page === item.key ? " active" : "");
       a.href = item.href;
-      a.innerHTML = `<span class="navicon">${item.icon}</span>${esc(item.label)}`;
+      a.innerHTML = `<span class="navicon">${item.icon}</span>${esc(I18n.t(item.labelKey))}`;
       navEl.appendChild(a);
     });
 
     document.getElementById("signout").addEventListener("click", signOut);
+    wireLangSwitcher();
     const toggle = document.getElementById("mobiletoggle");
     if (toggle) {
       toggle.addEventListener("click", () => document.getElementById("sidebar").classList.toggle("open"));
@@ -310,7 +335,7 @@ const Admin = (() => {
     SUPABASE_URL, ANON_KEY, PERMISSIONS, NAV,
     getSession, signIn, signOut, requestPasswordReset, ensureToken, refresh, adoptSession, setPassword,
     restFetch, rest, rpc, restCount,
-    esc, fmtDate, can, toast, confirmModal,
+    esc, fmtDate, fmtNum, can, toast, confirmModal,
     renderShell,
   };
 })();

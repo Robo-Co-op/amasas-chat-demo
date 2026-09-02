@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>会話ログ | AMASAS Admin</title>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,10 +12,12 @@
 <link rel="stylesheet" href="shared/admin.css">
 </head>
 <body>
+<script src="shared/i18n.js"></script>
 <script src="shared/admin.js"></script>
 <script>
 (async function () {
-  const ctx = await Admin.renderShell({ page: "conversations", title: "会話ログ", sub: "公開チャットのセッション・メッセージを閲覧します" });
+  document.title = I18n.t("conversations.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "conversations", title: I18n.t("conversations.title"), sub: I18n.t("conversations.sub") });
   if (!ctx) return;
   const content = document.getElementById("content");
   const params = new URLSearchParams(location.search);
@@ -23,34 +26,38 @@
   if (sessionId) { renderThread(sessionId); } else { renderList(); }
 
   async function renderThread(id) {
-    content.innerHTML = `<div class="loading">読み込み中…</div>`;
+    content.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
     try {
       const [session, messages] = await Promise.all([
         Admin.rest(`/rest/v1/amasas_chat_sessions?id=eq.${encodeURIComponent(id)}&select=*`).then((r) => r[0]),
         Admin.rest(`/rest/v1/amasas_chat_messages?session_id=eq.${encodeURIComponent(id)}&select=*&order=turn.asc`),
       ]);
       content.innerHTML = `
-        <div class="toolbar"><a href="conversations.html" class="btn ghost sm">← 一覧に戻る</a><div class="spacer"></div></div>
+        <div class="toolbar"><a href="conversations.html" class="btn ghost sm">${I18n.t("common.back_to_list")}</a><div class="spacer"></div></div>
         <div class="card" style="margin-bottom:16px;">
           <div class="formgrid">
-            <div><label>ニックネーム</label>${Admin.esc((session && session.nickname) || "—")}</div>
-            <div><label>あなたと海士町との関係</label>${Admin.esc((session && session.role_tag) || "—")}</div>
-            <div><label>開始日時</label>${Admin.fmtDate(session && session.created_at)}</div>
-            <div><label>セッションID</label><span class="mono" style="font-size:11px;">${Admin.esc(id)}</span></div>
+            <div><label>${I18n.t("conversations.field.nickname")}</label>${Admin.esc((session && session.nickname) || "—")}</div>
+            <div><label>${I18n.t("conversations.field.role_tag")}</label>${Admin.esc((session && session.role_tag) || "—")}</div>
+            <div><label>${I18n.t("conversations.field.started_at")}</label>${Admin.fmtDate(session && session.created_at)}</div>
+            <div><label>${I18n.t("conversations.field.session_id")}</label><span class="mono" style="font-size:11px;">${Admin.esc(id)}</span></div>
           </div>
         </div>
         <div class="thread" id="thread"></div>
       `;
       const thread = document.getElementById("thread");
       if (!messages.length) {
-        thread.innerHTML = `<div class="empty"><div class="big">💬</div>メッセージがありません</div>`;
+        thread.innerHTML = `<div class="empty"><div class="big">💬</div>${I18n.t("conversations.no_messages")}</div>`;
         return;
       }
       thread.innerHTML = messages.map((m) => {
         const bodyHtml = window.marked ? marked.parse(m.content || "") : Admin.esc(m.content || "");
         const sqlLog = Array.isArray(m.sql_log) && m.sql_log.length ? `
-          <details class="sql"><summary>SQL照会 ${m.sql_log.length}件${m.sql_log.some((e) => e.error) ? "（エラーあり）" : ""}</summary>
-            ${m.sql_log.map((e) => `<pre>${Admin.esc(e.query || "")}\n${e.error ? "→ ERROR: " + Admin.esc(e.error) : "→ " + (e.rows ?? 0) + " rows"}</pre>`).join("")}
+          <details class="sql"><summary>${I18n.t("conversations.sql_log_summary", {
+            count: m.sql_log.length,
+            queryWord: I18n.getLang() === "en" ? "quer" + (m.sql_log.length === 1 ? "y" : "ies") : "",
+            errorNote: m.sql_log.some((e) => e.error) ? I18n.t("conversations.sql_log_has_error") : "",
+          })}</summary>
+            ${m.sql_log.map((e) => `<pre>${Admin.esc(e.query || "")}\n${e.error ? I18n.t("conversations.sql_log_error_prefix") + Admin.esc(e.error) : I18n.t("conversations.sql_log_rows", { n: e.rows ?? 0 })}</pre>`).join("")}
           </details>` : "";
         return `<div class="m ${m.role === "user" ? "user" : "assistant"}">
           ${bodyHtml}
@@ -59,7 +66,7 @@
         </div>`;
       }).join("");
     } catch (err) {
-      content.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+      content.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
     }
   }
 
@@ -68,19 +75,19 @@
 
     content.innerHTML = `
       <div class="toolbar">
-        <input id="f-nickname" placeholder="ニックネームで検索" style="max-width:200px;" />
-        <input id="f-roletag" placeholder="お立場で絞り込み" style="max-width:200px;" />
-        <input id="f-from" type="date" title="開始日" style="max-width:150px;" />
-        <input id="f-to" type="date" title="終了日" style="max-width:150px;" />
-        <button class="btn ghost sm" id="apply">絞り込み</button>
-        <button class="btn ghost sm" id="clear">クリア</button>
+        <input id="f-nickname" placeholder="${I18n.t("conversations.filter.nickname")}" style="max-width:200px;" />
+        <input id="f-roletag" placeholder="${I18n.t("conversations.filter.role_tag")}" style="max-width:200px;" />
+        <input id="f-from" type="date" title="${I18n.t("conversations.filter.from")}" style="max-width:150px;" />
+        <input id="f-to" type="date" title="${I18n.t("conversations.filter.to")}" style="max-width:150px;" />
+        <button class="btn ghost sm" id="apply">${I18n.t("conversations.filter.apply")}</button>
+        <button class="btn ghost sm" id="clear">${I18n.t("conversations.filter.clear")}</button>
         <div class="spacer"></div>
       </div>
-      <div id="list"><div class="loading">読み込み中…</div></div>
+      <div id="list"><div class="loading">${I18n.t("common.loading")}</div></div>
       <div class="pager">
         <span id="pageinfo"></span>
-        <button class="btn ghost sm" id="prev">← 前へ</button>
-        <button class="btn ghost sm" id="next">次へ →</button>
+        <button class="btn ghost sm" id="prev">${I18n.t("common.prev")}</button>
+        <button class="btn ghost sm" id="next">${I18n.t("common.next")}</button>
       </div>
     `;
     document.getElementById("apply").addEventListener("click", () => {
@@ -101,7 +108,7 @@
 
     async function load() {
       const list = document.getElementById("list");
-      list.innerHTML = `<div class="loading">読み込み中…</div>`;
+      list.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
       try {
         const qs = [];
         if (state.nickname) qs.push(`nickname=ilike.*${encodeURIComponent(state.nickname)}*`);
@@ -118,26 +125,26 @@
         const counts = await Promise.all(rows.map((s) => Admin.restCount("amasas_chat_messages", `session_id=eq.${encodeURIComponent(s.id)}&select=id`)));
 
         document.getElementById("pageinfo").textContent = total
-          ? `${state.offset + 1}–${Math.min(state.offset + state.limit, total)} / ${total.toLocaleString("ja-JP")} 件`
-          : "0 件";
+          ? I18n.t("common.count_range", { from: state.offset + 1, to: Math.min(state.offset + state.limit, total), total: Admin.fmtNum(total) })
+          : I18n.t("common.count_zero");
         document.getElementById("prev").disabled = state.offset === 0;
         document.getElementById("next").disabled = state.offset + state.limit >= total;
 
         list.innerHTML = rows.length ? `
           <div class="tablewrap"><table class="dtable">
-            <thead><tr><th>日時</th><th>ニックネーム</th><th>お立場</th><th class="num">メッセージ数</th><th></th></tr></thead>
+            <thead><tr><th>${I18n.t("dashboard.th.datetime")}</th><th>${I18n.t("dashboard.th.nickname")}</th><th>${I18n.t("dashboard.th.role_tag")}</th><th class="num">${I18n.t("conversations.th.message_count")}</th><th></th></tr></thead>
             <tbody>${rows.map((s, i) => `
               <tr>
                 <td>${Admin.fmtDate(s.created_at)}</td>
                 <td>${Admin.esc(s.nickname || "—")}</td>
                 <td>${Admin.esc(s.role_tag || "—")}</td>
                 <td class="num">${counts[i]}</td>
-                <td><a href="conversations.html?session=${encodeURIComponent(s.id)}">会話を見る →</a></td>
+                <td><a href="conversations.html?session=${encodeURIComponent(s.id)}">${I18n.t("common.view_conversation")}</a></td>
               </tr>`).join("")}</tbody>
           </table></div>
-        ` : `<div class="empty"><div class="big">💬</div>条件に一致する会話がありません</div>`;
+        ` : `<div class="empty"><div class="big">💬</div>${I18n.t("conversations.no_results")}</div>`;
       } catch (err) {
-        list.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+        list.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
       }
     }
     load();
