@@ -1,0 +1,51 @@
+name: (temp) Inspect/set Vercel Ignore Build Step
+
+# One-off utility to read and set the amasas-ai project's Ignore Build Step
+# via the Vercel API, since the dashboard UI for this has been hard to
+# pin down remotely. Safe to delete once used.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "If true, also PATCHes the Ignore Build Step. If false, only reads current config."
+        type: boolean
+        default: false
+
+jobs:
+  vercel-config:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+    steps:
+      - name: Read current project config
+        run: |
+          curl -sS -X GET "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            | tee project.json \
+            | node -e '
+                const fs = require("fs");
+                const p = JSON.parse(fs.readFileSync("project.json", "utf8"));
+                if (p.error) { console.error("ERROR:", JSON.stringify(p.error, null, 2)); process.exit(1); }
+                console.log("name:", p.name);
+                console.log("id:", p.id);
+                console.log("link:", p.link && p.link.repo);
+                console.log("current commandForIgnoringBuildStep:", p.commandForIgnoringBuildStep);
+                console.log("domains:", (p.targets && p.targets.production && p.targets.production.alias) || "n/a");
+              '
+
+      - name: Set Ignore Build Step (only if apply=true)
+        if: ${{ inputs.apply }}
+        run: |
+          RESP=$(curl -sS -X PATCH "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"commandForIgnoringBuildStep": "if [ \"$VERCEL_GIT_COMMIT_REF\" = \"main\" ]; then exit 0; else exit 1; fi"}')
+          echo "$RESP" > patch_result.json
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(fs.readFileSync("patch_result.json", "utf8"));
+            if (p.error) { console.error("ERROR:", JSON.stringify(p.error, null, 2)); process.exit(1); }
+            console.log("updated commandForIgnoringBuildStep:", p.commandForIgnoringBuildStep);
+          '
