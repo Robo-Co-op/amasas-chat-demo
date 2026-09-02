@@ -77,6 +77,47 @@ done
 
 > 旧DB`ugddjjnldavwrhfwtxwa`のservice_roleキーは移行作業で一時的に使用しました。**露出したので再生成（revoke）してください。** 通常運用では不要です（読み取りは公開anonキー経由）。
 
+## 管理画面（Admin）
+
+`/admin/` 以下に、会話ログ・フィードバック・ナレッジベース（l4層に注入される町の公式コンテンツ）・管理者アカウントを扱う管理画面があります。外部npm依存・ビルドステップなしという本体と同じ方針で、Supabase Auth + PostgRESTへの直接fetchのみで作られています（`@supabase/supabase-js`不使用）。
+
+- `admin/login.html` — Supabase Authでサインイン
+- `admin/index.html` — ダッシュボード（実データのKPI + システム状態）
+- `admin/conversations.html` — セッション/メッセージの閲覧
+- `admin/feedback.html` — 👍/👎フィードバックの一覧
+- `admin/knowledge.html` — knowledge.\*（8テーブル）の編集
+- `admin/users.html` — 管理者アカウントとロール（owner/admin/editor/viewer）
+- `admin/settings.html` — メンテナンスモードの切替 + 実行時構成の診断表示
+- `admin/audit.html` — 監査ログ（knowledge編集・管理者ロール変更を自動記録）
+
+権限はDB側（RLSポリシー + `admin.*`関数内のロールチェック）で強制されます。UI側の非表示はあくまで補助であり、実際の境界は`supabase/migrations/0006_admin.sql`のSQLです。
+
+### セットアップ（初回のみ・手動）
+
+1. `0006_admin.sql`を他のマイグレーションと同じ手順で適用します（上記「DBについて」参照）:
+   ```bash
+   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0006_admin.sql
+   ```
+2. 最初の管理者（owner）を作成します。Supabaseダッシュボード → Authentication → Users → Add userでユーザーを作成するか、`POST /auth/v1/admin/users`を叩きます。
+3. 作成したユーザーのUUIDを控え、`admin.admin_users`にowner権限で登録します:
+   ```sql
+   insert into admin.admin_users (id, email, display_name, role)
+   values ('<auth.usersのUUID>', '<メールアドレス>', '<表示名（任意）>', 'owner');
+   ```
+4. 新しい環境変数は不要です。`api/admin/invite.js`は既存の`SUPABASE_SERVICE_KEY`を使うので、招待機能を使う場合はこれがVercelに設定されている必要があります（フィードバック記録に既に必要なものと同じ）。
+5. デプロイ後、`/admin/login.html`からowner用アカウントでサインインします。以降の管理者は`admin/users.html`から招待できます（Supabase Authの招待メールを使用。届かない場合はダッシュボードから直接ユーザー作成してください）。
+
+### 手動QAチェックリスト
+
+- [ ] ownerでログイン → ダッシュボードに実データ（0件なら空状態）が表示される
+- [ ] 未ログインで`/admin/index.html`等に直接アクセス → `login.html`にリダイレクトされる
+- [ ] `admin/users.html`から新規管理者を招待 → メール受信 → パスワード設定 → ログインできる
+- [ ] editorロールでログイン → ナレッジは編集できるが「管理者」「設定」「監査ログ」タブが出ない
+- [ ] viewerロールでログイン → ナレッジ編集ボタンが出ない（RPC直呼びでも`forbidden`で拒否される）
+- [ ] ナレッジベースで1件編集・1件追加・1件削除 → `admin/audit.html`に記録される
+- [ ] `admin/settings.html`でメンテナンスモードをON → 公開チャット（`/`）にメッセージを送るとメンテナンス表示になる → OFFに戻す
+- [ ] `admin/feedback.html`の👎から「会話を見る」→ 該当セッションのスレッドが開く
+
 ## セキュリティ
 
 - DBへのアクセスは読み取り専用RPC（SELECT以外拒否・5秒・500行上限・RLS）

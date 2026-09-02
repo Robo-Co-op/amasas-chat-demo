@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>監査ログ | AMASAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/admin.js"></script>
+<script>
+(async function () {
+  const ctx = await Admin.renderShell({ page: "audit", title: "監査ログ", sub: "ナレッジ編集・管理者ロール変更は自動的にここへ記録されます" });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+
+  let offset = 0;
+  const limit = 50;
+
+  content.innerHTML = `
+    <div id="list"><div class="loading">読み込み中…</div></div>
+    <div class="pager">
+      <span id="pageinfo"></span>
+      <button class="btn ghost sm" id="prev">← 前へ</button>
+      <button class="btn ghost sm" id="next">次へ →</button>
+    </div>
+  `;
+  document.getElementById("prev").addEventListener("click", () => { offset = Math.max(0, offset - limit); load(); });
+  document.getElementById("next").addEventListener("click", () => { offset += limit; load(); });
+
+  async function load() {
+    const list = document.getElementById("list");
+    list.innerHTML = `<div class="loading">読み込み中…</div>`;
+    try {
+      const rows = await Admin.rpc("admin_list_audit_log", { limit_n: limit, offset_n: offset });
+      document.getElementById("pageinfo").textContent = `${offset + 1}〜${offset + rows.length} 件`;
+      document.getElementById("prev").disabled = offset === 0;
+      document.getElementById("next").disabled = rows.length < limit;
+
+      list.innerHTML = rows.length ? `
+        <div class="tablewrap"><table class="dtable">
+          <thead><tr><th>日時</th><th>実行者</th><th>操作</th><th>対象</th><th></th></tr></thead>
+          <tbody>${rows.map((a, i) => `
+            <tr>
+              <td>${Admin.fmtDate(a.created_at)}</td>
+              <td>${Admin.esc(a.actor_email || "—")}</td>
+              <td class="mono" style="font-size:12px;">${Admin.esc(a.action)}</td>
+              <td class="mono" style="font-size:12px;">${Admin.esc(a.target || "—")}</td>
+              <td><button class="btn ghost sm" data-i="${i}">詳細</button></td>
+            </tr>
+            <tr id="detail-${i}" style="display:none;"><td colspan="5"><pre style="background:var(--surface-2);padding:10px;border-radius:8px;overflow-x:auto;font-size:11px;">${Admin.esc(JSON.stringify(a.details, null, 2))}</pre></td></tr>
+          `).join("")}</tbody>
+        </table></div>
+      ` : `<div class="empty"><div class="big">📜</div>記録がありません</div>`;
+
+      list.querySelectorAll("button[data-i]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const row = document.getElementById(`detail-${btn.dataset.i}`);
+          row.style.display = row.style.display === "none" ? "" : "none";
+        });
+      });
+    } catch (err) {
+      list.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>

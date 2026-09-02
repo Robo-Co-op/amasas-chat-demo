@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ダッシュボード | AMASAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/admin.js"></script>
+<script>
+(async function () {
+  const ctx = await Admin.renderShell({ page: "dashboard", title: "ダッシュボード", sub: "会話・フィードバックの実データと、公開チャットの稼働状況" });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+
+  const iso = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+  const num = (n) => (n ?? 0).toLocaleString("ja-JP");
+
+  content.innerHTML = `<div class="loading">集計中…</div>`;
+
+  try {
+    const [
+      sessionsTotal, sessions7d, sessions30d,
+      messagesTotal, feedbackOk, feedbackNg,
+      recentSessions, recentNg, sampleMessages,
+      maintenance,
+    ] = await Promise.all([
+      Admin.restCount("amasas_chat_sessions", "select=id"),
+      Admin.restCount("amasas_chat_sessions", `select=id&created_at=gte.${iso(7)}`),
+      Admin.restCount("amasas_chat_sessions", `select=id&created_at=gte.${iso(30)}`),
+      Admin.restCount("amasas_chat_messages", "select=id"),
+      Admin.restCount("amasas_chat_feedback", "verdict=eq.ok&select=id"),
+      Admin.restCount("amasas_chat_feedback", "verdict=eq.ng&select=id"),
+      Admin.rest("/rest/v1/amasas_chat_sessions?select=*&order=created_at.desc&limit=8"),
+      Admin.rest("/rest/v1/amasas_chat_feedback?select=*&verdict=eq.ng&order=created_at.desc&limit=5"),
+      Admin.rest("/rest/v1/amasas_chat_messages?select=model,data_layer,sql_log&role=eq.assistant&order=created_at.desc&limit=500"),
+      Admin.rpc("amasas_maintenance_status").catch(() => null),
+    ]);
+
+    let health = null;
+    try {
+      const s = await Admin.ensureToken();
+      const r = await fetch("/api/admin/health", { headers: { Authorization: `Bearer ${s.access_token}` } });
+      if (r.ok) health = await r.json();
+    } catch { /* health panel is best-effort */ }
+
+    // Fetch the referenced messages for the negative-feedback preview list.
+    const msgIds = [...new Set(recentNg.map((f) => f.message_id))];
+    let msgById = {};
+    if (msgIds.length) {
+      const rows = await Admin.rest(`/rest/v1/amasas_chat_messages?select=id,content,session_id,nickname,role_tag&id=in.(${msgIds.join(",")})`);
+      msgById = Object.fromEntries(rows.map((r) => [r.id, r]));
+    }
+
+    const feedbackTotal = feedbackOk + feedbackNg;
+    const satisfaction = feedbackTotal ? Math.round((feedbackOk / feedbackTotal) * 100) : null;
+
+    const modelTally = {}, layerTally = {};
+    let errorCount = 0;
+    for (const m of sampleMessages) {
+      if (m.model) modelTally[m.model] = (modelTally[m.model] || 0) + 1;
+      if (m.data_layer) layerTally[m.data_layer] = (layerTally[m.data_layer] || 0) + 1;
+      if (Array.isArray(m.sql_log) && m.sql_log.some((e) => e && e.error)) errorCount++;
+    }
+    const barRow = (tally, total) => Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+        <div class="mono" style="width:150px;font-size:12px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Admin.esc(k)}</div>
+        <div style="flex:1;background:var(--surface-2);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="width:${total ? (v / total) * 100 : 0}%;background:var(--teal);height:100%;"></div>
+        </div>
+        <div class="mono" style="width:44px;text-align:right;font-size:12px;color:var(--ink-2);">${v}</div>
+      </div>`).join("") || `<div class="loading">データがありません</div>`;
+
+    const healthChip = (okBool, label) =>
+      `<span class="badge ${okBool ? "ok" : "ng"}">${okBool ? "✓" : "✕"} ${Admin.esc(label)}</span>`;
+
+    content.innerHTML = `
+      ${maintenance && maintenance.enabled ? `<div class="errbox">⚠ メンテナンスモードが有効です。公開チャットは現在利用できません。（<a href="settings.html">設定で解除</a>）</div>` : ""}
+
+      <div class="grid kpis">
+        <div class="card kpi"><div class="label">セッション数（全期間）</div><div class="value">${num(sessionsTotal)}</div><div class="note">直近7日: ${num(sessions7d)} ・ 直近30日: ${num(sessions30d)}</div></div>
+        <div class="card kpi"><div class="label">メッセージ数（全期間）</div><div class="value">${num(messagesTotal)}</div><div class="note">ユーザー発話+AI応答の合計</div></div>
+        <div class="card kpi"><div class="label">フィードバック</div><div class="value">${satisfaction !== null ? satisfaction + "%" : "—"}</div><div class="note">${satisfaction !== null ? `👍 ${num(feedbackOk)} ・ 👎 ${num(feedbackNg)}` : "まだ評価がありません"}</div></div>
+        <div class="card kpi"><div class="label">SQLエラー率（直近500件中）</div><div class="value">${sampleMessages.length ? Math.round((errorCount / sampleMessages.length) * 100) + "%" : "—"}</div><div class="note">${num(errorCount)} 件でクエリエラーが発生</div></div>
+      </div>
+
+      <h2 class="section">システム状態</h2>
+      <div class="card">
+        ${health ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            ${healthChip(health.geminiKeyConfigured, "GEMINI_API_KEY")}
+            ${healthChip(health.serviceKeyConfigured, "SUPABASE_SERVICE_KEY")}
+            ${healthChip(health.dbReachable, "DB 疎通")}
+            <span class="badge layer">${Admin.esc(health.vercelEnv)}</span>
+          </div>
+          <div style="font-size:13px;color:var(--ink-2);">
+            使用モデル: <span class="mono">${Admin.esc(health.geminiModel)}</span>（混雑時フォールバック: <span class="mono">${Admin.esc(health.geminiFallbackModel)}</span>）・
+            データ層既定: <span class="mono">${Admin.esc(health.dataLayer)}</span>
+          </div>
+        ` : `<div class="loading">システム状態を取得できませんでした</div>`}
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px;">
+        <div class="card">
+          <h2 class="section" style="margin-top:0;">モデル使用内訳（直近500件）</h2>
+          ${barRow(modelTally, sampleMessages.length)}
+        </div>
+        <div class="card">
+          <h2 class="section" style="margin-top:0;">データ層内訳（直近500件）</h2>
+          ${barRow(layerTally, sampleMessages.length)}
+        </div>
+      </div>
+
+      <h2 class="section">最近のセッション</h2>
+      ${recentSessions.length ? `
+      <div class="tablewrap"><table class="dtable">
+        <thead><tr><th>日時</th><th>ニックネーム</th><th>お立場</th><th></th></tr></thead>
+        <tbody>${recentSessions.map((s) => `
+          <tr>
+            <td>${Admin.fmtDate(s.created_at)}</td>
+            <td>${Admin.esc(s.nickname || "—")}</td>
+            <td>${Admin.esc(s.role_tag || "—")}</td>
+            <td><a href="conversations.html?session=${encodeURIComponent(s.id)}">会話を見る →</a></td>
+          </tr>`).join("")}</tbody>
+      </table></div>` : `<div class="empty"><div class="big">💬</div>まだ会話がありません</div>`}
+
+      <h2 class="section">対応が必要なフィードバック（👎）</h2>
+      ${recentNg.length ? `
+      <div class="tablewrap"><table class="dtable">
+        <thead><tr><th>日時</th><th>発言者</th><th>該当回答</th><th>コメント</th><th></th></tr></thead>
+        <tbody>${recentNg.map((f) => {
+          const m = msgById[f.message_id];
+          return `<tr>
+            <td>${Admin.fmtDate(f.created_at)}</td>
+            <td>${Admin.esc((m && (m.nickname || m.role_tag)) || "—")}</td>
+            <td style="max-width:320px;">${Admin.esc((m && m.content || "").slice(0, 90))}${m && m.content && m.content.length > 90 ? "…" : ""}</td>
+            <td>${Admin.esc(f.comment || "—")}</td>
+            <td>${m ? `<a href="conversations.html?session=${encodeURIComponent(m.session_id)}">会話を見る →</a>` : "—"}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table></div>` : `<div class="empty"><div class="big">✓</div>未対応のネガティブフィードバックはありません</div>`}
+    `;
+  } catch (err) {
+    content.innerHTML = `<div class="errbox">読み込みに失敗しました: ${Admin.esc(err.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
