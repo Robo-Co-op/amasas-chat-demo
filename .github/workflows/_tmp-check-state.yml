@@ -1,0 +1,30 @@
+name: (temp) Confirm no partial state from failed deletes
+
+# Read-only: confirms the earlier failed admin_delete_user attempts (FK
+# violation) rolled back cleanly and left admin_users untouched. Safe to
+# delete once used -- SELECT-only.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: jcokpgmqmtxefzjjenrx
+    steps:
+      - name: Query admin_users
+        run: |
+          cat > query.json <<'EOF'
+          {"query": "select id, email, role, is_active, created_at, last_login_at from admin.admin_users order by created_at;"}
+          EOF
+          curl -sS -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d @query.json \
+            -o result.json
+          cat result.json | node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync(0, "utf8"));
+            console.log(JSON.stringify(data, null, 2));
+          '
