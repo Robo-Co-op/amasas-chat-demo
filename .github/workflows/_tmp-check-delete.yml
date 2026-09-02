@@ -1,0 +1,32 @@
+name: (temp) Inspect admin_users state + FK constraints
+
+# Read-only diagnostic for the "delete admin" bug report: checks whether the
+# admin_users row for the target account still exists (tells us if the RPC
+# step succeeded or not) and whether admin_audit_log's FK to admin_users has
+# an ON DELETE behavior that could block/slow a delete. Safe to delete once
+# used -- SELECT-only, no writes.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: jcokpgmqmtxefzjjenrx
+    steps:
+      - name: Query admin_users + FK constraint info
+        run: |
+          cat > query.json <<'EOF'
+          {"query": "select id, email, role, is_active, created_at from admin.admin_users order by created_at; select conname, confdeltype, pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'admin.admin_audit_log'::regclass and contype = 'f';"}
+          EOF
+          curl -sS -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d @query.json \
+            -o result.json
+          cat result.json | node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync(0, "utf8"));
+            console.log(JSON.stringify(data, null, 2));
+          '
