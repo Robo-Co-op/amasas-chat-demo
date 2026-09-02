@@ -4,6 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AMASAS chat の使い方</title>
+<script>
+// This repo is deployed under 3 separate Vercel accounts (same code, 3
+// different domains) -- we only control one of them. Rather than needing
+// dashboard access to the other two (which we don't have), send anyone who
+// lands on either of them straight to the canonical domain. Matches by
+// team-slug suffix so it catches every deployment (preview or production)
+// from those two accounts, without touching our own project's domains.
+(function () {
+  if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-projects\.vercel\.app$/.test(location.hostname)) {
+    location.replace("https://amasas-chat-demo-7bk6.vercel.app" + location.pathname + location.search + location.hash);
+  }
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
