@@ -404,7 +404,7 @@ async function callGemini(model, sysText, contents, useTools, onStatus) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
-  const { messages, sessionId, roleTag, nickname, model: reqModel, dataLayer: reqLayer } = req.body || {};
+  const { messages, sessionId, roleTag, nickname, visitorId, model: reqModel, dataLayer: reqLayer } = req.body || {};
   if (!Array.isArray(messages) || !messages.length || !sessionId)
     return res.status(400).json({ error: "bad request" });
 
@@ -508,7 +508,7 @@ export default async function handler(req, res) {
   // ログ記録(失敗しても回答は返す)
   let messageId = null;
   await logToDb("amasas_chat_sessions?on_conflict=id", [
-    { id: sessionId, role_tag: roleTag || null, nickname: nickname || null },
+    { id: sessionId, role_tag: roleTag || null, nickname: nickname || null, visitor_id: visitorId || null },
   ]);
   const turn = messages.length;
   // nickname/role_tagはamasas_chat_sessions側にもあるが、会話ログ単体を見て

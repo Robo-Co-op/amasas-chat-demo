@@ -457,12 +457,34 @@ const S = {
   role: "",
   name: "",
   session: localStorage.getItem("amasas_session") || crypto.randomUUID(),
+  // amasas_sessionと違い、ログアウト/無操作タイムアウトでも消さない。
+  // 匿名の来訪者IDで、個人情報は含まない（新規/再訪の判定にのみ使う）
+  visitor: localStorage.getItem("amasas_visitor") || crypto.randomUUID(),
   messages: [],
   preview: false,
   model: localStorage.getItem("amasas_model") || "",
   layer: localStorage.getItem("amasas_layer") || "",
 };
 localStorage.setItem("amasas_session", S.session);
+localStorage.setItem("amasas_visitor", S.visitor);
+
+// 計測ビーコン。失敗しても何もしない・応答を待たない（体験に一切影響させない）
+function track(eventType, extra) {
+  try {
+    fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        event_type: eventType,
+        session_id: S.session,
+        visitor_id: S.visitor,
+        referrer: document.referrer || null,
+        metadata: extra || null,
+      }),
+    });
+  } catch { /* ignore */ }
+}
 
 const $ = (id) => document.getElementById(id);
 function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
@@ -649,6 +671,7 @@ localStorage.removeItem("amasas_last_active");
 // 以前のバージョンが保存した名前・お立場が残っていれば、ここで消す
 ["amasas_name", "amasas_role"].forEach((k) => localStorage.removeItem(k));
 showLanding();
+track("landing_view");
 
 // 引数は押されたボタン/入力欄。上下どちらの行から始めても同じ挙動
 async function startChat(from) {
@@ -665,6 +688,7 @@ async function startChat(from) {
   S.name = name; S.role = slot.querySelector(".e-role").value;
   showChat(true);
   touchActivity();   // in-chat になった後で押す。順番を逆にすると印が付かない
+  track("chat_started");
   boot.then(d => setupLab(d));
   $("input").focus();
 }
@@ -733,7 +757,7 @@ async function send() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: S.messages, sessionId: S.session, roleTag: S.role, nickname: S.name,
+        messages: S.messages, sessionId: S.session, roleTag: S.role, nickname: S.name, visitorId: S.visitor,
         ...(S.preview ? { model: S.model, dataLayer: S.layer } : {}),
       }),
     });
