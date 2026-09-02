@@ -92,9 +92,20 @@ done
 
 権限はDB側（RLSポリシー + `admin.*`関数内のロールチェック）で強制されます。UI側の非表示はあくまで補助であり、実際の境界は`supabase/migrations/0006_admin.sql`のSQLです。
 
+### マイグレーションの自動適用（GitHub Actions）
+
+`.github/workflows/supabase-migrations-deploy.yml`が、`supabase/migrations/`配下の変更を含むpushが`main`にあると、自動で`supabase db push`を実行します（`.github/workflows/supabase-migrations-check.yml`はPR時に`--dry-run`で先に確認するチェック用）。以降は新しいマイグレーションファイルを追加してmainにマージするだけで、`psql`を手動で叩く必要はありません。
+
+有効にするには、GitHubリポジトリの **Settings → Secrets and variables → Actions** に以下2つを登録してください（値は貼り付けないでください。私からは入力できません — 各自で登録してください）:
+
+- `SUPABASE_ACCESS_TOKEN` — https://supabase.com/dashboard/account/tokens で発行する個人アクセストークン
+- `SUPABASE_DB_PASSWORD` — Amasasプロジェクトの接続文字列に使うDBパスワード（Project Settings → Database → Connection stringから確認、忘れた場合は同画面でリセット可能）
+
+2026-09-02時点で、`0001`〜`0006`は既に本番へ適用済みで、リモート側のマイグレーション履歴テーブルも`supabase migration repair`で整合済みです（このワークフローが初回実行時に過去分を再適用しようとすることはありません）。
+
 ### セットアップ（初回のみ・手動）
 
-1. `0006_admin.sql`を他のマイグレーションと同じ手順で適用します（上記「DBについて」参照）:
+1. `0006_admin.sql`を他のマイグレーションと同じ手順で適用します（上記「DBについて」参照。新規マイグレーションは上記のGitHub Actionsで自動適用されるため、これは初回のみの手順です）:
    ```bash
    psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0006_admin.sql
    ```

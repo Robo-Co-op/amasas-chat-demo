@@ -1,0 +1,36 @@
+name: Apply Supabase migrations (main)
+
+# Auto-applies new files under supabase/migrations/ to the live Amasas
+# project whenever they land on main. Relies on the remote migration
+# history table being in sync with what's actually been applied (verified
+# and repaired as of 2026-09-02 — see README) so this only ever pushes
+# genuinely NEW migrations, never replays old ones.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch: {}
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref jcokpgmqmtxefzjjenrx --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Push new migrations
+        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
