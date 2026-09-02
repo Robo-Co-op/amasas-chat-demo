@@ -21,18 +21,15 @@ jobs:
     steps:
       - name: Read current auth config
         run: |
-          curl -sS -X GET "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -o auth_config.json
+          HTTP_STATUS=$(curl -sS -o auth_config.json -w "%{http_code}" -X GET "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}")
+          echo "HTTP status: $HTTP_STATUS"
           node -e '
               const fs = require("fs");
               const c = JSON.parse(fs.readFileSync("auth_config.json", "utf8"));
-              if (c.error || c.message) { console.error("ERROR:", JSON.stringify(c, null, 2)); process.exit(1); }
-              console.log("SITE_URL:", c.SITE_URL);
-              console.log("URI_ALLOW_LIST:", c.URI_ALLOW_LIST);
-              console.log("MAILER_AUTOCONFIRM:", c.MAILER_AUTOCONFIRM);
-              console.log("EXTERNAL_EMAIL_ENABLED:", c.EXTERNAL_EMAIL_ENABLED);
-              console.log("SMTP_HOST:", c.SMTP_HOST || "(not set - using Supabase default mailer)");
+              console.log("keys:", Object.keys(c).sort().join(", "));
+              const wanted = Object.keys(c).filter(k => /site_url|uri_allow|redirect|allow_list/i.test(k));
+              for (const k of wanted) console.log(k, "=", JSON.stringify(c[k]));
             '
 
       - name: Set uri_allow_list (only if apply_uri_allow_list input is non-empty)
