@@ -1,0 +1,30 @@
+name: (temp) Inspect Supabase SMTP config
+
+# One-off read-only check of the SMTP sender domain, to figure out which
+# DNS records (SPF/DKIM/DMARC) need checking for invite/recovery email
+# deliverability. Safe to delete once used.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smtp-check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: jcokpgmqmtxefzjjenrx
+    steps:
+      - name: Read SMTP config
+        run: |
+          curl -sS -X GET "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -o auth_config.json
+          node -e '
+              const fs = require("fs");
+              const c = JSON.parse(fs.readFileSync("auth_config.json", "utf8"));
+              console.log("smtp_host:", c.smtp_host);
+              console.log("smtp_port:", c.smtp_port);
+              console.log("smtp_user:", c.smtp_user);
+              console.log("smtp_sender_name:", c.smtp_sender_name);
+              console.log("smtp_admin_email:", c.smtp_admin_email);
+              console.log("smtp_max_frequency:", c.smtp_max_frequency);
+            '
