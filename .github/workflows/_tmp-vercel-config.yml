@@ -23,17 +23,17 @@ jobs:
         run: |
           curl -sS -X GET "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            | tee project.json \
-            | node -e '
-                const fs = require("fs");
-                const p = JSON.parse(fs.readFileSync("project.json", "utf8"));
-                if (p.error) { console.error("ERROR:", JSON.stringify(p.error, null, 2)); process.exit(1); }
-                console.log("name:", p.name);
-                console.log("id:", p.id);
-                console.log("link:", p.link && p.link.repo);
-                console.log("current commandForIgnoringBuildStep:", p.commandForIgnoringBuildStep);
-                console.log("domains:", (p.targets && p.targets.production && p.targets.production.alias) || "n/a");
-              '
+            -o project.json
+          node -e '
+              const fs = require("fs");
+              const p = JSON.parse(fs.readFileSync("project.json", "utf8"));
+              if (p.error) { console.error("ERROR:", JSON.stringify(p.error, null, 2)); process.exit(1); }
+              console.log("name:", p.name);
+              console.log("id:", p.id);
+              console.log("link:", p.link && p.link.repo);
+              console.log("current commandForIgnoringBuildStep:", p.commandForIgnoringBuildStep);
+              console.log("domains:", (p.targets && p.targets.production && p.targets.production.alias) || "n/a");
+            '
 
       - name: Set Ignore Build Step (only if apply=true)
         if: ${{ inputs.apply }}
