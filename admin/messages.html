@@ -28,9 +28,16 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
   if (!ctx) return;
   const content = document.getElementById("content");
 
-  const state = { limit: 20, offset: 0 };
+  const state = { nickname: "", limit: 20, offset: 0 };
 
   content.innerHTML = `
+    <div class="toolbar">
+      <input id="f-nickname" placeholder="${I18n.t("conversations.filter.nickname")}" style="max-width:220px;" />
+      <button class="btn ghost sm" id="apply">${I18n.t("conversations.filter.apply")}</button>
+      <button class="btn ghost sm" id="clear">${I18n.t("conversations.filter.clear")}</button>
+      <div class="spacer"></div>
+      <button class="btn ghost sm" id="download">${I18n.t("messages.download")}</button>
+    </div>
     <div id="list"><div class="loading">${I18n.t("common.loading")}</div></div>
     <div class="pager">
       <span id="pageinfo"></span>
@@ -38,25 +45,61 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
       <button class="btn ghost sm" id="next">${I18n.t("common.next")}</button>
     </div>
   `;
+  document.getElementById("apply").addEventListener("click", () => {
+    state.nickname = document.getElementById("f-nickname").value.trim();
+    state.offset = 0;
+    load();
+  });
+  document.getElementById("clear").addEventListener("click", () => {
+    document.getElementById("f-nickname").value = "";
+    state.nickname = ""; state.offset = 0;
+    load();
+  });
   document.getElementById("prev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - state.limit); load(); });
   document.getElementById("next").addEventListener("click", () => { state.offset += state.limit; load(); });
+  document.getElementById("download").addEventListener("click", download);
+
+  // Resolve the nickname filter into a message-query clause + a nickname map.
+  // Nickname lives on the sessions table, so filtering means first finding the
+  // matching sessions and then constraining messages to their ids.
+  async function scope() {
+    if (!state.nickname) return { empty: false, clause: "", nickById: {} };
+    const sessions = await Admin.rest(`/rest/v1/amasas_chat_sessions?nickname=ilike.*${encodeURIComponent(state.nickname)}*&select=id,nickname&limit=1000`);
+    const nickById = {};
+    sessions.forEach((s) => { nickById[s.id] = s.nickname; });
+    const ids = sessions.map((s) => s.id);
+    if (!ids.length) return { empty: true, clause: "", nickById };
+    return { empty: false, clause: `session_id=in.(${ids.map(encodeURIComponent).join(",")})&`, nickById };
+  }
+
+  async function nicknamesFor(rows, seed) {
+    const nickById = Object.assign({}, seed);
+    const missing = [...new Set(rows.map((m) => m.session_id).filter((id) => id && !(id in nickById)))];
+    for (let i = 0; i < missing.length; i += 200) {
+      const slice = missing.slice(i, i + 200);
+      const ss = await Admin.rest(`/rest/v1/amasas_chat_sessions?id=in.(${slice.map(encodeURIComponent).join(",")})&select=id,nickname`);
+      ss.forEach((s) => { nickById[s.id] = s.nickname; });
+    }
+    return nickById;
+  }
 
   async function load() {
     const list = document.getElementById("list");
     list.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
     try {
-      const [rows, total] = await Promise.all([
-        Admin.rest(`/rest/v1/amasas_chat_messages?select=id,session_id,role,content&order=id.desc&limit=${state.limit}&offset=${state.offset}`),
-        Admin.restCount("amasas_chat_messages", "select=id"),
-      ]);
-
-      // Look up nicknames for this page's sessions in one request.
-      const ids = [...new Set(rows.map((m) => m.session_id).filter(Boolean))];
-      const nickById = {};
-      if (ids.length) {
-        const sessions = await Admin.rest(`/rest/v1/amasas_chat_sessions?id=in.(${ids.map(encodeURIComponent).join(",")})&select=id,nickname`);
-        sessions.forEach((s) => { nickById[s.id] = s.nickname; });
+      const sc = await scope();
+      if (sc.empty) {
+        list.innerHTML = `<div class="empty"><div class="big">💬</div>${I18n.t("messages.no_results")}</div>`;
+        document.getElementById("pageinfo").textContent = I18n.t("common.count_zero");
+        document.getElementById("prev").disabled = true;
+        document.getElementById("next").disabled = true;
+        return;
       }
+      const [rows, total] = await Promise.all([
+        Admin.rest(`/rest/v1/amasas_chat_messages?${sc.clause}select=id,session_id,role,content,created_at&order=id.desc&limit=${state.limit}&offset=${state.offset}`),
+        Admin.restCount("amasas_chat_messages", `${sc.clause}select=id`),
+      ]);
+      const nickById = await nicknamesFor(rows, sc.nickById);
 
       document.getElementById("pageinfo").textContent = total
         ? I18n.t("common.count_range", { from: state.offset + 1, to: Math.min(state.offset + state.limit, total), total: Admin.fmtNum(total) })
@@ -68,6 +111,7 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
         <div class="tablewrap"><table class="dtable">
           <thead><tr>
             <th class="num">${I18n.t("messages.th.id")}</th>
+            <th>${I18n.t("messages.th.date")}</th>
             <th>${I18n.t("dashboard.th.nickname")}</th>
             <th>${I18n.t("messages.th.role")}</th>
             <th>${I18n.t("messages.th.content")}</th>
@@ -75,6 +119,7 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
           <tbody>${rows.map((m) => `
             <tr>
               <td class="num mono">${m.id}</td>
+              <td>${Admin.fmtDate(m.created_at)}</td>
               <td>${Admin.esc(nickById[m.session_id] || "—")}</td>
               <td><span class="mono">${Admin.esc(m.role || "—")}</span></td>
               <td style="white-space:pre-wrap; word-break:break-word; min-width:320px; max-width:720px;">${Admin.esc(m.content || "")}</td>
@@ -85,6 +130,48 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
       list.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
     }
   }
+
+  // ---- CSV export of everything matching the current filter ----
+  const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+  async function download() {
+    const btn = document.getElementById("download");
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = I18n.t("common.loading");
+    try {
+      const sc = await scope();
+      const all = [];
+      if (!sc.empty) {
+        const CHUNK = 1000, CAP = 50000;
+        for (let off = 0; off < CAP; off += CHUNK) {
+          const part = await Admin.rest(`/rest/v1/amasas_chat_messages?${sc.clause}select=id,session_id,role,content,created_at&order=id.desc&limit=${CHUNK}&offset=${off}`);
+          if (!part || !part.length) break;
+          all.push(...part);
+          if (part.length < CHUNK) break;
+        }
+      }
+      const nickById = await nicknamesFor(all, sc.nickById);
+
+      const header = ["id", "created_at", "nickname", "role", "content"];
+      const lines = [header.map(csvCell).join(",")];
+      all.forEach((m) => lines.push([m.id, m.created_at || "", nickById[m.session_id] || "", m.role || "", m.content || ""].map(csvCell).join(",")));
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `amasas-messages-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(I18n.t("common.error_prefix", { msg: err.message }));
+    } finally {
+      btn.disabled = false; btn.textContent = label;
+    }
+  }
+
   load();
 })();
 </script>

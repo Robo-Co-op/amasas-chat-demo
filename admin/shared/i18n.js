@@ -149,6 +149,8 @@ const I18n = (() => {
     "messages.th.role": { ja: "ロール", en: "Role" },
     "messages.th.content": { ja: "本文", en: "Content" },
     "messages.no_results": { ja: "メッセージがありません", en: "No messages found" },
+    "messages.th.date": { ja: "日時", en: "Date" },
+    "messages.download": { ja: "CSVダウンロード", en: "Download CSV" },
 
     // ---------------- feedback.html ----------------
     "feedback.title": { ja: "フィードバック", en: "Feedback" },
