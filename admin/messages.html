@@ -29,7 +29,6 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
   const content = document.getElementById("content");
 
   const state = { limit: 20, offset: 0 };
-  const trunc = (s) => { s = s || ""; return s.length > 200 ? s.slice(0, 200) + "…" : s; };
 
   content.innerHTML = `
     <div id="list"><div class="loading">${I18n.t("common.loading")}</div></div>
@@ -78,7 +77,7 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
               <td class="num mono">${m.id}</td>
               <td>${Admin.esc(nickById[m.session_id] || "—")}</td>
               <td><span class="mono">${Admin.esc(m.role || "—")}</span></td>
-              <td title="${Admin.esc(m.content || "")}">${Admin.esc(trunc(m.content))}</td>
+              <td style="white-space:pre-wrap; word-break:break-word; min-width:320px; max-width:720px;">${Admin.esc(m.content || "")}</td>
             </tr>`).join("")}</tbody>
         </table></div>
       ` : `<div class="empty"><div class="big">💬</div>${I18n.t("messages.no_results")}</div>`;
