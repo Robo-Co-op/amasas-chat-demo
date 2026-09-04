@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>メッセージ一覧 | AMASAS Admin</title>
+<script>
+// This repo deploys under 3 separate Vercel accounts (see index.html) --
+// redirect visitors on the two we don't control to the canonical domain.
+// Preserves the path, so /admin/* deep links keep working after redirect.
+if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-projects\.vercel\.app$/.test(location.hostname)) {
+  location.replace("https://amasas-chat-demo-7bk6.vercel.app" + location.pathname + location.search + location.hash);
+}
+</script>
+<script>document.documentElement.lang = localStorage.getItem("amasas_admin_lang") || "ja";</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="shared/admin.css">
+</head>
+<body>
+<script src="shared/i18n.js"></script>
+<script src="shared/admin.js"></script>
+<script>
+(async function () {
+  document.title = I18n.t("messages.title") + " | AMASAS Admin";
+  const ctx = await Admin.renderShell({ page: "messages", title: I18n.t("messages.title"), sub: I18n.t("messages.sub") });
+  if (!ctx) return;
+  const content = document.getElementById("content");
+
+  const state = { limit: 20, offset: 0 };
+
+  content.innerHTML = `
+    <div id="list"><div class="loading">${I18n.t("common.loading")}</div></div>
+    <div class="pager">
+      <span id="pageinfo"></span>
+      <button class="btn ghost sm" id="prev">${I18n.t("common.prev")}</button>
+      <button class="btn ghost sm" id="next">${I18n.t("common.next")}</button>
+    </div>
+  `;
+  document.getElementById("prev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - state.limit); load(); });
+  document.getElementById("next").addEventListener("click", () => { state.offset += state.limit; load(); });
+
+  async function load() {
+    const list = document.getElementById("list");
+    list.innerHTML = `<div class="loading">${I18n.t("common.loading")}</div>`;
+    try {
+      const [rows, total] = await Promise.all([
+        Admin.rest(`/rest/v1/amasas_chat_messages?select=id,session_id,role,content&order=id.desc&limit=${state.limit}&offset=${state.offset}`),
+        Admin.restCount("amasas_chat_messages", "select=id"),
+      ]);
+
+      // Look up nicknames for this page's sessions in one request.
+      const ids = [...new Set(rows.map((m) => m.session_id).filter(Boolean))];
+      const nickById = {};
+      if (ids.length) {
+        const sessions = await Admin.rest(`/rest/v1/amasas_chat_sessions?id=in.(${ids.map(encodeURIComponent).join(",")})&select=id,nickname`);
+        sessions.forEach((s) => { nickById[s.id] = s.nickname; });
+      }
+
+      document.getElementById("pageinfo").textContent = total
+        ? I18n.t("common.count_range", { from: state.offset + 1, to: Math.min(state.offset + state.limit, total), total: Admin.fmtNum(total) })
+        : I18n.t("common.count_zero");
+      document.getElementById("prev").disabled = state.offset === 0;
+      document.getElementById("next").disabled = state.offset + state.limit >= total;
+
+      list.innerHTML = rows.length ? `
+        <div class="tablewrap"><table class="dtable">
+          <thead><tr>
+            <th class="num">${I18n.t("messages.th.id")}</th>
+            <th>${I18n.t("dashboard.th.nickname")}</th>
+            <th>${I18n.t("messages.th.role")}</th>
+            <th>${I18n.t("messages.th.content")}</th>
+          </tr></thead>
+          <tbody>${rows.map((m) => `
+            <tr>
+              <td class="num mono">${m.id}</td>
+              <td>${Admin.esc(nickById[m.session_id] || "—")}</td>
+              <td><span class="mono">${Admin.esc(m.role || "—")}</span></td>
+              <td style="white-space:pre-wrap; word-break:break-word; min-width:320px; max-width:720px;">${Admin.esc(m.content || "")}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+      ` : `<div class="empty"><div class="big">💬</div>${I18n.t("messages.no_results")}</div>`;
+    } catch (err) {
+      list.innerHTML = `<div class="errbox">${I18n.t("common.error_prefix", { msg: Admin.esc(err.message) })}</div>`;
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>

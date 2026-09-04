@@ -29,6 +29,7 @@ const I18n = (() => {
     // ---------------- nav ----------------
     "nav.dashboard": { ja: "ダッシュボード", en: "Dashboard" },
     "nav.conversations": { ja: "会話ログ", en: "Conversations" },
+    "nav.messages": { ja: "メッセージ", en: "Messages" },
     "nav.feedback": { ja: "フィードバック", en: "Feedback" },
     "nav.knowledge": { ja: "ナレッジ", en: "Knowledge" },
     "nav.users": { ja: "管理者", en: "Administrators" },
@@ -142,6 +143,12 @@ const I18n = (() => {
     "conversations.filter.clear": { ja: "クリア", en: "Clear" },
     "conversations.th.message_count": { ja: "メッセージ数", en: "Messages" },
     "conversations.no_results": { ja: "条件に一致する会話がありません", en: "No conversations match these filters" },
+    "messages.title": { ja: "メッセージ一覧", en: "Messages" },
+    "messages.sub": { ja: "全メッセージを一覧表示（ID・ニックネーム・ロール・本文）", en: "All messages — ID, nickname, role, content" },
+    "messages.th.id": { ja: "ID", en: "ID" },
+    "messages.th.role": { ja: "ロール", en: "Role" },
+    "messages.th.content": { ja: "本文", en: "Content" },
+    "messages.no_results": { ja: "メッセージがありません", en: "No messages found" },
 
     // ---------------- feedback.html ----------------
     "feedback.title": { ja: "フィードバック", en: "Feedback" },
