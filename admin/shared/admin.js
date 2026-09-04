@@ -11,15 +11,16 @@ const Admin = (() => {
   // pages). The real boundary is admin.current_role() enforced inside every
   // public.admin_* RPC and the RLS policies on the chat-log tables.
   const PERMISSIONS = {
-    owner: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
-    admin: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
-    editor: ["dashboard", "conversations", "feedback", "knowledge_view", "knowledge_edit"],
-    viewer: ["dashboard", "conversations", "feedback", "knowledge_view"],
+    owner: ["dashboard", "conversations", "messages", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
+    admin: ["dashboard", "conversations", "messages", "feedback", "knowledge_view", "knowledge_edit", "users", "analytics", "settings", "audit"],
+    editor: ["dashboard", "conversations", "messages", "feedback", "knowledge_view", "knowledge_edit"],
+    viewer: ["dashboard", "conversations", "messages", "feedback", "knowledge_view"],
   };
 
   const NAV = [
     { key: "dashboard", href: "index.html", labelKey: "nav.dashboard", icon: "DB" },
     { key: "conversations", href: "conversations.html", labelKey: "nav.conversations", icon: "CV" },
+    { key: "messages", href: "messages.html", labelKey: "nav.messages", icon: "MS" },
     { key: "feedback", href: "feedback.html", labelKey: "nav.feedback", icon: "FB" },
     { key: "knowledge_view", href: "knowledge.html", labelKey: "nav.knowledge", icon: "KB" },
     { key: "users", href: "users.html", labelKey: "nav.users", icon: "US" },
