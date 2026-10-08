@@ -1,8 +1,8 @@
 // System-health panel for the admin dashboard. Reports env-var *presence*
 // only (never values) plus a live read-only DB ping — the values themselves
 // live in Vercel project settings and can't be read or changed from here.
-const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
-const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
+const SUPABASE_URL = "https://hyedzuckgyadlpsfksrb.supabase.co";
+const ANON_KEY = "sb_publishable_RjUDgV5nwIOI050ZWpPFMA_oqdkIsiY";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "GET only" });

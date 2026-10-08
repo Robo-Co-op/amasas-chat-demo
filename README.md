@@ -33,7 +33,7 @@
 3. importすると自動でデプロイされ、URLが発行されます
 4. 以降は`main`ブランチへのpushで本番URLへ自動的に再デプロイされます。それ以外のブランチやPRはプレビューURLとして自動デプロイされます
 
-DB(Supabase)への接続情報はコード内に組み込まれており、現在は新プロジェクト`jcokpgmqmtxefzjjenrx`を指します。ただし新プロジェクトは空のため、チャットを動かすには下記「DBについて」の移行作業（RPCとデータ層の取り込み）が必要です。
+DB(Supabase)への接続情報はコード内に組み込まれており、現在はAMANOWA組織のプロジェクト`hyedzuckgyadlpsfksrb`（「AMASAS AI」）を指します。
 
 ## 補足
 
@@ -53,7 +53,7 @@ DB(Supabase)への接続情報はコード内に組み込まれており、現�
 
 ## DBについて
 
-コードが読み書きするSupabaseは新プロジェクト`jcokpgmqmtxefzjjenrx`（このリポジトリ側で管理・アクセス可能）に統一済みです。`api/chat.js`・`api/feedback.js`の接続先とキーはこのプロジェクトを指します。
+コードが読み書きするSupabaseはAMANOWA組織のプロジェクト「AMASAS AI」`hyedzuckgyadlpsfksrb`に統一済みです（2026-09にRobo Co-op側の`jcokpgmqmtxefzjjenrx`から全データ・認証ユーザーごと移行）。`api/chat.js`・`api/feedback.js`の接続先とキーはこのプロジェクトを指します。
 
 DBの中身は`supabase/migrations/`に全て取り込み済みで、リポジトリだけで新しいSupabaseに再現できます:
 
@@ -67,7 +67,7 @@ DBの中身は`supabase/migrations/`に全て取り込み済みで、リポジ�
 `0004`が7MBあり、SQL EditorよりCLI/`psql`が確実です。新プロジェクトの接続文字列（Settings → Database → Connection string）を使い、番号順に適用してください:
 
 ```bash
-DB_URL="postgresql://postgres:[パスワード]@db.jcokpgmqmtxefzjjenrx.supabase.co:5432/postgres"
+DB_URL="postgresql://postgres:[パスワード]@db.hyedzuckgyadlpsfksrb.supabase.co:5432/postgres"
 for f in supabase/migrations/000*.sql; do
   echo "== $f =="; psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
 done
