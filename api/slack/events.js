@@ -249,8 +249,9 @@ async function handleEvent(body, startedAt) {
       method: "POST",
       prefer: "return=minimal",
       body: [
-        { conversation_key: ev.convKey, role: "user", content: ev.text, slack_user: ev.user, slack_ts: ev.ts },
-        { conversation_key: ev.convKey, role: "assistant", content: answer, sql_log: sqlLog, data_layer: DATA_LAYER, model: MODEL },
+        // PostgRESTの一括insertは全行のキーが同じでないと400になるため、両行とも同じ列を持たせる
+        { conversation_key: ev.convKey, role: "user", content: ev.text, slack_user: ev.user, slack_ts: ev.ts, sql_log: null, data_layer: null, model: null },
+        { conversation_key: ev.convKey, role: "assistant", content: answer, slack_user: null, slack_ts: null, sql_log: sqlLog, data_layer: DATA_LAYER, model: MODEL },
       ],
     }).catch((e) => log({ level: "error", msg: "history save failed", ...meta, error: String(e) }));
 

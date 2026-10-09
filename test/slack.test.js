@@ -169,6 +169,9 @@ before(() => {
       return json(rows.slice(0, Number(u.searchParams.get("limit"))));
     }
     if (path === "slack_messages" && method === "POST") {
+      // 本物のPostgRESTと同じく、一括insertで行ごとにキーが違えば400(PGRST102)
+      const keys = body.map((r) => Object.keys(r).sort().join(","));
+      if (new Set(keys).size > 1) return json({ code: "PGRST102", message: "All object keys must match" }, 400);
       fake.messages.push(...body);
       return new Response(null, { status: 201 });
     }
