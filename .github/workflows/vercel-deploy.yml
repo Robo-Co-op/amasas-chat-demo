@@ -42,12 +42,12 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-      # Slack bot credentials live in GitHub secrets; copy them into the
-      # Vercel project's production env after `vercel pull` links the
-      # project (env add needs that link) and before deploying, so the
-      # deployed /api/slack/events function can read them. Only the two Slack
-      # values are synced -- nothing else is overwritten. Skips any that are
-      # unset; never fails the web deploy.
+      # Slack bot credentials live in GitHub secrets; upsert them into the
+      # Vercel project's production env (REST API) before deploying, so the
+      # deployed /api/slack/events function can read them. `vercel env add`
+      # failed here with "Could not retrieve Project Settings", so this calls
+      # the API directly and logs the HTTP error (never the value) on failure.
+      # Only the two Slack values are synced; never fails the web deploy.
       - name: Sync Slack secrets to Vercel
         continue-on-error: true
         env:
@@ -55,11 +55,19 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
         run: |
+          query="upsert=true"
+          case "$VERCEL_ORG_ID" in team_*) query="$query&teamId=$VERCEL_ORG_ID" ;; esac
           for name in SLACK_BOT_TOKEN SLACK_SIGNING_SECRET; do
             value="${!name}"
             if [ -z "$value" ]; then echo "$name not set in GitHub secrets; skipping"; continue; fi
-            printf '%s' "$value" | vercel env add "$name" production --force --sensitive --token="$VERCEL_TOKEN" >/dev/null
-            echo "$name synced"
+            body=$(jq -n --arg k "$name" --arg v "$value" '{key: $k, value: $v, type: "encrypted", target: ["production"]}')
+            code=$(curl -s -o resp.json -w '%{http_code}' -X POST               "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?$query"               -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" -d "$body")
+            if [ "$code" -lt 300 ]; then
+              echo "$name synced"
+            else
+              echo "::warning::$name sync failed: HTTP $code $(jq -c '{code: .error.code, message: .error.message}' resp.json 2>/dev/null)"
+            fi
+            rm -f resp.json
           done
 
       - name: Build
