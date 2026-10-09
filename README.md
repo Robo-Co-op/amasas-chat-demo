@@ -21,6 +21,8 @@
 - `api/chat.js` — Gemini(function calling) + Supabase読み取り専用RPCで回答を生成
 - `api/feedback.js` — 回答への評価コメントを記録（`SUPABASE_SERVICE_KEY`未設定時はスキップ）
 - `api/auth.js` — 画面の初期設定（Preview判定と既定モデル・データ層）を返すだけ
+- `api/slack/events.js` — Slack版AMASAS（下記「Slack版AMASAS」）
+- `lib/amasas-agent.js` — Web版とSlack版が共有する対話エンジン（プロンプト・Geminiループ・読み取り専用SQL）
 
 ## セットアップ（Vercelにデプロイ）
 
@@ -165,6 +167,36 @@ https://*.vercel.app/admin/login.html
 - [ ] ナレッジベースで1件編集・1件追加・1件削除 → `admin/audit.html`に記録される
 - [ ] `admin/settings.html`でメンテナンスモードをON → 公開チャット（`/`）にメッセージを送るとメンテナンス表示になる → OFFに戻す
 - [ ] `admin/feedback.html`の👎から「会話を見る」→ 該当セッションのスレッドが開く
+
+## Slack版AMASAS
+
+SlackのDM・チャンネルでのメンション・ボットの会話スレッドでの続きに、AMASASが直接答えます。Tachikoma / Robo Operatorは経由しません（Slack → このVercelプロジェクト → Gemini / Supabase）。
+
+**仕組み**
+- `api/slack/events.js`がSlack Events API（HTTP）を受け、署名（`SLACK_SIGNING_SECRET`）を検証して即座に200を返し、AI処理は`waitUntil`で応答後に実行します。
+- 指示はSlack用の汎用アシスタント指示＋Web版と同じAMASAS窓口の指示（`lib/slack.js`）。一般的な質問は確認なしでAIの知識で答え、海士町の質問だけデータを照会して出典を付けます。Web検索は持たないため、最新情報が必要な質問にはその旨を明示します。
+- 会話履歴はSupabaseの`slack_conversations` / `slack_messages`（`0010_slack_bot.sql`）に保存。Web版の`amasas_chat_*`とは別テーブルで、キーは「ワークスペース:チャンネル:スレッド」（DMのトップレベルは「ワークスペース:DM:dm」）。関数の再起動・再デプロイ後も残ります。
+- 重複排除: `slack_events`にメッセージ単位（ワークスペース:チャンネル:ts）で記録し、Slackの再送やmention＋messageの二重通知でも返信は1回。ボット自身・他のボットの発言は無視（ループ防止）。
+- 同じ会話のターンはロックで直列化（前の回答を最大15秒待つ）。Slack全体の同時実行は`SLACK_MAX_CONCURRENT`（既定4）までで、超えたら「混み合っています」と返します。ロックは90秒で自然に外れます。
+- 55秒以内に終わらなければ中断して、その旨をスレッドに返します。AI側のエラーも分かりやすいメッセージで返し、失敗したターンは履歴に残しません。
+- 長い回答はSlackのメッセージ単位（約3,500字）に分けて投稿。Markdownの太字・見出し・リンクはSlack表記に、表はコードブロックに変換します。
+- 管理画面の「メンテナンスモード」がONのときはSlackにもメンテナンスメッセージを返します。
+
+**セットアップ（初回のみ）**
+1. https://api.slack.com/apps → Create New App → **From a manifest** → ワークスペースを選び、`slack/app-manifest.json`の中身を貼り付けて作成
+2. Install to Workspace → **Bot User OAuth Token**（`xoxb-…`）と、Basic Information の **Signing Secret** を控える
+3. Vercelの`amasas-ai`プロジェクト（本番）→ Settings → Environment Variables（Production）に追加して再デプロイ:
+   - `SLACK_BOT_TOKEN`（必須）/ `SLACK_SIGNING_SECRET`（必須）
+   - `SUPABASE_SERVICE_KEY`（必須。Web版と同じもの。未設定だと重複排除と履歴保存ができないため処理しません）
+   - 任意: `SLACK_GEMINI_API_KEY`（未設定ならWeb版と同じ`GEMINI_API_KEY`）、`SLACK_GEMINI_MODEL`（未設定なら`GEMINI_MODEL`）、`SLACK_MAX_CONCURRENT`（既定4）
+4. Slackアプリ設定 → Event Subscriptions でRequest URLが **Verified** になっていることを確認（URLはmanifestに記載済み: `https://amasas-chat-demo-7bk6.vercel.app/api/slack/events`）
+5. 使うチャンネルで`/invite @Amasas`。DMはアプリの「メッセージ」タブから
+
+**運用**
+- ログ: Vercel → Logs で関数`/api/slack/events`を絞り込み。1行1JSON（`"src":"slack"`）で、`answered` / `duplicate ignored` / `rejected` / `turn failed`などを出力します（メッセージ本文やトークンはログに出しません）。
+- 処理状況: `slack_events.status`（`processing` / `done` / `failed` / `rejected`）と`duration_ms`。
+- 停止: Slackアプリ設定でEvent Subscriptionsを無効化する（即時）か、Vercelから`SLACK_BOT_TOKEN`を外して再デプロイ（受信は503を返す）。Web版には影響しません。
+- テスト: `npm test`（偽のSlack/Supabase/Geminiを使った結合テストを含む）。
 
 ## セキュリティ
 
