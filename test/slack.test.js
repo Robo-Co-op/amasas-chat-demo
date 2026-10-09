@@ -8,9 +8,11 @@ process.env.SLACK_BOT_TOKEN = "xoxb-test";
 process.env.SUPABASE_SERVICE_KEY = "service-test";
 process.env.GEMINI_API_KEY = "gemini-test";
 process.env.SLACK_MAX_CONCURRENT = "4";
+process.env.SLACK_AI_RETRY_WAITS_MS = "50";
 
 const { verifySlackSignature, classifyEvent, toSlackMrkdwn, chunkText, cleanText } = await import("../lib/slack.js");
 const { POST } = await import("../api/slack/events.js");
+const { runAgent } = await import("../lib/amasas-agent.js");
 
 const BOT = "UBOT";
 const sign = (raw, ts = Math.floor(Date.now() / 1000)) =>
@@ -97,6 +99,8 @@ function resetFake() {
   fake.geminiCalls = [];
   fake.geminiDelayMs = 0;
   fake.geminiFailNext = 0;
+  fake.geminiFailStatus = 500;
+  fake.geminiAlwaysTool = false;
 }
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
@@ -118,8 +122,11 @@ before(() => {
       if (fake.geminiDelayMs) await new Promise((r) => setTimeout(r, fake.geminiDelayMs));
       if (fake.geminiFailNext > 0) {
         fake.geminiFailNext--;
-        return json({ error: { message: "internal" } }, 500);
+        const msg = fake.geminiFailStatus === 429 ? "You exceeded your current quota (RESOURCE_EXHAUSTED)" : "internal";
+        return json({ error: { message: msg } }, fake.geminiFailStatus);
       }
+      if (fake.geminiAlwaysTool && body.tools)
+        return json({ candidates: [{ content: { role: "model", parts: [{ functionCall: { name: "amasas_query", args: { query: "select 1 from population" } } }] } }] });
       const last = body.contents[body.contents.length - 1];
       if (last.parts[0].functionResponse)
         return json({ candidates: [{ content: { role: "model", parts: [{ text: "住民基本台帳によると人口は2,347人です。" }] } }] });
@@ -177,6 +184,7 @@ beforeEach(() => {
   unexpectedErrors = [];
   console.log = (line) => {
     if (/"level":"error"/.test(line) && !/"msg":"turn failed"/.test(line)) unexpectedErrors.push(line);
+    else if (process.env.TEST_VERBOSE) realLog(line);
   };
 });
 afterEach(() => {
@@ -291,4 +299,36 @@ test("e2e: overlapping turns in one conversation are serialized", async () => {
   assert.equal(roles, "user,assistant,user,assistant");
   // 2つ目のターンは1つ目の回答を履歴に含んでいる
   assert.equal(fake.geminiCalls[1].contents.length, 3);
+});
+
+test("never times out: past the wrap-up point it stops querying and still answers from data so far", async () => {
+  fake.geminiAlwaysTool = true;
+  const { answer, sqlLog } = await runAgent({
+    model: "m", layer: "amasas", sysText: "s",
+    contents: [{ role: "user", parts: [{ text: "海士町の人口は?" }] }],
+    wrapUpAt: Date.now() - 1,
+  });
+  assert.equal(sqlLog.length, 1, "one query round, then wrap-up");
+  assert.match(answer, /^ANSWER to/, "an answer, not an error or timeout");
+  const last = fake.geminiCalls.at(-1);
+  assert.equal(last.tools, undefined, "wrap-up call has no tools");
+  assert.match(JSON.stringify(last.contents), /時間の都合でデータの照会はここまでです/);
+});
+
+test("e2e: AI rate limit is retried and still answered (no error posted)", async () => {
+  fake.geminiFailStatus = 429;
+  fake.geminiFailNext = 4; // callGemini内の再試行+代替モデルも尽きる → Slack側で待って再試行
+  await send({ type: "message", channel_type: "im", channel: "D5", ts: "900.1", user: "U1", text: "hello" });
+  await settle(done(1), 20000);
+  assert.match(finalTexts().at(-1), /ANSWER to "hello"/);
+  assert.equal([...fake.events.values()][0].status, "done");
+});
+
+test("e2e: exhausted credits/quota gives a clear quota message", async () => {
+  fake.geminiFailStatus = 429;
+  fake.geminiFailNext = 100;
+  await send({ type: "message", channel_type: "im", channel: "D6", ts: "901.1", user: "U1", text: "hello" });
+  await settle(done(1), 30000);
+  assert.match(finalTexts().at(-1), /クレジットが不足/);
+  assert.equal(fake.conversations.get("T1:D6:dm").lock, null);
 });

@@ -11,15 +11,22 @@ import { verifySlackSignature, classifyEvent, toSlackMrkdwn, chunkText, buildSla
 const MODEL = process.env.SLACK_GEMINI_MODEL || DEFAULT_MODEL;
 const MAX_CONCURRENT = Math.max(1, Number(process.env.SLACK_MAX_CONCURRENT) || 4);
 const HISTORY_LIMIT = 20; // Geminiに渡す直近の発言数
-const FUNCTION_BUDGET_MS = 55 * 1000; // vercel.jsonのmaxDuration(60秒)より手前で必ず決着させる
-const LOCK_WAIT_MS = 15 * 1000; // 同じ会話の前のターンを待つ上限
-const LOCK_TTL_SECONDS = 90; // インスタンスが落ちてもこの秒数でロックは自然に外れる
+// タイムアウトで打ち切らず必ず回答する。vercel.jsonのmaxDuration(300秒)に対し、
+// WRAP_UP_MSを過ぎたら追加のデータ照会をやめ、取得済みのデータで回答をまとめる
+const FUNCTION_LIMIT_MS = 300 * 1000;
+const WRAP_UP_MS = FUNCTION_LIMIT_MS - 75 * 1000;
+const LOCK_WAIT_MS = 120 * 1000; // 同じ会話の前のターンが終わるのを待つ上限
+const LOCK_TTL_SECONDS = 330; // インスタンスが落ちてもこの秒数でロックは自然に外れる(関数上限より長く)
+// AIの混雑・レート制限時の再試行間隔(SLACK_AI_RETRY_WAITS_MSはテスト用の上書き。カンマ区切りのミリ秒)
+const AI_RETRY_WAITS_MS = process.env.SLACK_AI_RETRY_WAITS_MS
+  ? process.env.SLACK_AI_RETRY_WAITS_MS.split(",").map(Number)
+  : [10 * 1000, 20 * 1000, 30 * 1000];
 
 const MSG = {
   thinking: ":hourglass_flowing_sand: 考えています… / Thinking…",
   busyConversation: "前の質問にまだ回答中です。回答が出てからもう一度送ってください。\nI'm still answering the previous message in this conversation — please send this again once it's done.",
   busyGlobal: "ただいま混み合っています。1分ほど待ってからもう一度お試しください。\nI'm handling too many requests right now — please try again in a minute.",
-  timeout: "回答に時間がかかりすぎたため中断しました。質問を短くするか、もう一度お試しください。\nThis took too long and was stopped — please try again or ask a shorter question.",
+  quota: "AI(Gemini)の利用枠・クレジットが不足しているため回答できませんでした。管理者に連絡してください。\nI couldn't answer because the AI (Gemini) quota or credits are exhausted — please contact the administrator.",
   overloaded: "ただいまAIが混み合っています。1分ほど待ってからもう一度お試しください。\nThe AI service is busy right now — please try again in a minute.",
   error: "処理中にエラーが発生しました。もう一度お試しください。\nSomething went wrong while answering — please try again.",
 };
@@ -66,6 +73,11 @@ export async function POST(request) {
 export function GET() {
   return new Response("POST only", { status: 405 });
 }
+
+// 429(レート制限・利用枠)と503(混雑)は待てば回復しうる
+const isTransient = (e) => e?.status === 429 || e?.status === 503 || /high demand|overloaded|RESOURCE_EXHAUSTED/i.test(String(e?.message));
+// 利用枠・クレジット切れ(再試行しても回復しなかった429や課金系のエラー)
+const isQuota = (e) => e?.status === 429 || /quota|billing|credit|RESOURCE_EXHAUSTED/i.test(String(e?.message));
 
 // ---- Supabase(service_role)。slack_*テーブルはRLSでservice_role以外から見えない ----
 async function db(path, { method = "GET", body, prefer } = {}) {
@@ -116,7 +128,7 @@ async function getBotUserId(body) {
 }
 
 async function handleEvent(body, startedAt) {
-  const deadline = startedAt + FUNCTION_BUDGET_MS;
+  const wrapUpAt = startedAt + WRAP_UP_MS;
   if (!process.env.SUPABASE_SERVICE_KEY) {
     // 重複排除も履歴保存もできない状態で返信すると重複・文脈喪失が起きるので処理しない
     log({ level: "error", msg: "SUPABASE_SERVICE_KEY not configured; event dropped", eventId: body.event_id });
@@ -182,8 +194,6 @@ async function handleEvent(body, startedAt) {
 
   let placeholder = null;
   let statusChain = Promise.resolve();
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), Math.max(5000, deadline - Date.now() - 3000));
   try {
     placeholder = await post(MSG.thinking);
 
@@ -205,16 +215,29 @@ async function handleEvent(body, startedAt) {
     contents.push({ role: "user", parts: [{ text: ev.text }] });
 
     const sysText = await buildSlackSystemPrompt(DATA_LAYER);
-    const { answer, sqlLog } = await runAgent({
-      model: MODEL,
-      layer: DATA_LAYER,
-      sysText,
-      contents,
-      onStatus,
-      apiKey: process.env.SLACK_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
-      signal: ac.signal,
-    });
-    clearTimeout(timer);
+    // AIの混雑・レート制限(429/503)は時間の許す限り待って再試行する(callGemini内の短い再試行の外側)
+    let result;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        result = await runAgent({
+          model: MODEL,
+          layer: DATA_LAYER,
+          sysText,
+          contents: contents.map((c) => ({ ...c })),
+          onStatus,
+          apiKey: process.env.SLACK_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
+          wrapUpAt,
+        });
+        break;
+      } catch (e) {
+        const wait = AI_RETRY_WAITS_MS[attempt];
+        if (!isTransient(e) || wait === undefined || Date.now() + wait > wrapUpAt) throw e;
+        log({ msg: "AI busy, retrying", ...meta, attempt: attempt + 1, status: e.status });
+        onStatus("AIが混み合っています。少し待って再試行しています…");
+        await sleep(wait);
+      }
+    }
+    const { answer, sqlLog } = result;
 
     await statusChain; // 古い途中経過が最終回答を上書きしないように
     const chunks = chunkText(toSlackMrkdwn(answer || MSG.error));
@@ -234,13 +257,8 @@ async function handleEvent(body, startedAt) {
     await finish("done");
     log({ msg: "answered", ...meta, ms: Date.now() - startedAt, sqlCount: sqlLog.length, chars: answer.length, parts: chunks.length });
   } catch (e) {
-    clearTimeout(timer);
-    const text = ac.signal.aborted
-      ? MSG.timeout
-      : /high demand|overloaded|429|503/i.test(String(e?.message))
-        ? MSG.overloaded
-        : MSG.error;
-    log({ level: "error", msg: "turn failed", ...meta, aborted: ac.signal.aborted, error: String(e?.message || e) });
+    const text = isQuota(e) ? MSG.quota : isTransient(e) ? MSG.overloaded : MSG.error;
+    log({ level: "error", msg: "turn failed", ...meta, status: e?.status, error: String(e?.message || e) });
     await statusChain;
     try {
       if (placeholder) await slack("chat.update", { channel: ev.channel, ts: placeholder.ts, text });
