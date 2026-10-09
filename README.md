@@ -168,7 +168,7 @@ https://*.vercel.app/admin/login.html
 - [ ] `admin/settings.html`でメンテナンスモードをON → 公開チャット（`/`）にメッセージを送るとメンテナンス表示になる → OFFに戻す
 - [ ] `admin/feedback.html`の👎から「会話を見る」→ 該当セッションのスレッドが開く
 
-## Slack版AMASAS（Slackアプリ名: Amasa AI）
+## Slack版AMASAS（Slackアプリ名: Amasas AI）
 
 SlackのDM・チャンネルでのメンション・ボットの会話スレッドでの続きに、AMASASが直接答えます。Tachikoma / Robo Operatorは経由しません（Slack → このVercelプロジェクト → Gemini / Supabase）。
 
@@ -190,7 +190,7 @@ SlackのDM・チャンネルでのメンション・ボットの会話スレッ�
    - `SUPABASE_SERVICE_KEY`（必須。Web版と同じもの。未設定だと重複排除と履歴保存ができないため処理しません）
    - 任意: `SLACK_GEMINI_API_KEY`（未設定ならWeb版と同じ`GEMINI_API_KEY`）、`SLACK_GEMINI_MODEL`（未設定なら`GEMINI_MODEL`）、`SLACK_MAX_CONCURRENT`（既定4）
 4. Slackアプリ設定 → Event Subscriptions でRequest URLが **Verified** になっていることを確認（URLはmanifestに記載済み: `https://amasas-chat-demo-7bk6.vercel.app/api/slack/events`）
-5. 使うチャンネルで`/invite @Amasa AI`。DMはアプリの「メッセージ」タブから
+5. 使うチャンネルで`/invite @Amasas AI`。DMはアプリの「メッセージ」タブから
 
 **運用**
 - ログ: Vercel → Logs で関数`/api/slack/events`を絞り込み。1行1JSON（`"src":"slack"`）で、`answered` / `duplicate ignored` / `rejected` / `turn failed`などを出力します（メッセージ本文やトークンはログに出しません）。
