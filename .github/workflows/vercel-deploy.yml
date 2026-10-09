@@ -37,6 +37,25 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # Slack bot credentials live in GitHub secrets; copy them into the
+      # Vercel project's production env before pulling/building so the
+      # deployed /api/slack/events function can read them. Only the two Slack
+      # values are synced -- nothing else is overwritten. Skips any that are
+      # unset; never fails the web deploy.
+      - name: Sync Slack secrets to Vercel
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+        run: |
+          for name in SLACK_BOT_TOKEN SLACK_SIGNING_SECRET; do
+            value="${!name}"
+            if [ -z "$value" ]; then echo "$name not set in GitHub secrets; skipping"; continue; fi
+            printf '%s' "$value" | vercel env add "$name" production --force --sensitive --token="$VERCEL_TOKEN" >/dev/null
+            echo "$name synced"
+          done
+
       - name: Pull Vercel project settings
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
