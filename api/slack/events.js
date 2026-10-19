@@ -9,7 +9,10 @@ import { SUPABASE_URL, DATA_LAYER, DEFAULT_MODEL, runAgent, getMaintenanceStatus
 import { verifySlackSignature, classifyEvent, toSlackMrkdwn, chunkText, buildSlackSystemPrompt } from "../../lib/slack.js";
 
 const MODEL = process.env.SLACK_GEMINI_MODEL || DEFAULT_MODEL;
-const MAX_CONCURRENT = Math.max(1, Number(process.env.SLACK_MAX_CONCURRENT) || 4);
+// Geminiの思考の深さ。既定(high)は毎ラウンド長く考えて返信が遅くなるため、Slackは既定でlow。
+// "default"にするとモデル既定に戻す
+const THINKING_LEVEL = process.env.SLACK_THINKING_LEVEL === "default" ? undefined : process.env.SLACK_THINKING_LEVEL || "low";
+const MAX_CONCURRENT =Math.max(1, Number(process.env.SLACK_MAX_CONCURRENT) || 4);
 const HISTORY_LIMIT = 20; // Geminiに渡す直近の発言数
 // タイムアウトで打ち切らず必ず回答する。vercel.jsonのmaxDuration(300秒)に対し、
 // WRAP_UP_MSを過ぎたら追加のデータ照会をやめ、取得済みのデータで回答をまとめる
@@ -227,6 +230,7 @@ async function handleEvent(body, startedAt) {
           onStatus,
           apiKey: process.env.SLACK_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
           wrapUpAt,
+          thinkingLevel: THINKING_LEVEL,
         });
         break;
       } catch (e) {

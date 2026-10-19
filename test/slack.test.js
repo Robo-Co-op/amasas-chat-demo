@@ -101,6 +101,7 @@ function resetFake() {
   fake.geminiFailNext = 0;
   fake.geminiFailStatus = 500;
   fake.geminiAlwaysTool = false;
+  fake.geminiRejectThinking = false;
 }
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
@@ -120,6 +121,8 @@ before(() => {
     if (u.hostname === "generativelanguage.googleapis.com") {
       fake.geminiCalls.push(body);
       if (fake.geminiDelayMs) await new Promise((r) => setTimeout(r, fake.geminiDelayMs));
+      if (fake.geminiRejectThinking && body.generationConfig?.thinkingConfig)
+        return json({ error: { message: "Thinking level is not supported for this model." } }, 400);
       if (fake.geminiFailNext > 0) {
         fake.geminiFailNext--;
         const msg = fake.geminiFailStatus === 429 ? "You exceeded your current quota (RESOURCE_EXHAUSTED)" : "internal";
@@ -334,4 +337,23 @@ test("e2e: exhausted credits/quota gives a clear quota message", async () => {
   await settle(done(1), 30000);
   assert.match(finalTexts().at(-1), /クレジットが不足/);
   assert.equal(fake.conversations.get("T1:D6:dm").lock, null);
+});
+
+test("e2e: Slack asks Gemini for low thinking (faster replies)", async () => {
+  await send({ type: "message", channel_type: "im", channel: "D7", ts: "902.1", user: "U1", text: "hello" });
+  await settle(done(1));
+  assert.deepEqual(fake.geminiCalls[0].generationConfig, { thinkingConfig: { thinkingLevel: "low" } });
+});
+
+test("e2e: a model that rejects the thinking setting still answers", async () => {
+  fake.geminiRejectThinking = true;
+  await send({ type: "message", channel_type: "im", channel: "D8", ts: "903.1", user: "U1", text: "hello" });
+  await settle(done(1));
+  assert.match(finalTexts().at(-1), /ANSWER to "hello"/);
+  assert.equal(fake.geminiCalls.at(-1).generationConfig, undefined);
+});
+
+test("runAgent without thinkingLevel (web chat) sends no thinking setting", async () => {
+  await runAgent({ model: "m", layer: "amasas", sysText: "s", contents: [{ role: "user", parts: [{ text: "hi" }] }] });
+  assert.equal(fake.geminiCalls[0].generationConfig, undefined);
 });
