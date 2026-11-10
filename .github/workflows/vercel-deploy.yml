@@ -70,6 +70,30 @@ jobs:
             rm -f resp.json
           done
 
+      # The Supabase service key must change together with the project URL in
+      # the code, and team Developers cannot edit production env vars in the
+      # dashboard, so the deploy itself sets it. Unlike the Slack step this one
+      # fails the deploy: shipping code with a key for the wrong project would
+      # silently break every DB write.
+      - name: Sync Supabase service key to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_AMANOWA }}
+        run: |
+          if [ -z "$SERVICE_KEY" ]; then echo "::error::GitHub secret SUPABASE_SERVICE_KEY_AMANOWA is not set"; exit 1; fi
+          case "$SERVICE_KEY" in sb_secret_*) ;; *) echo "::error::SUPABASE_SERVICE_KEY_AMANOWA is not an sb_secret_ key"; exit 1 ;; esac
+          query="upsert=true"
+          case "$VERCEL_ORG_ID" in team_*) query="$query&teamId=$VERCEL_ORG_ID" ;; esac
+          body=$(jq -n --arg v "$SERVICE_KEY" '{key: "SUPABASE_SERVICE_KEY", value: $v, type: "sensitive", target: ["production", "preview"]}')
+          code=$(curl -s -o resp.json -w '%{http_code}' -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?$query" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" -d "$body")
+          if [ "$code" -ge 300 ]; then
+            echo "::error::SUPABASE_SERVICE_KEY sync failed: HTTP $code $(jq -c '{code: .error.code, message: .error.message}' resp.json 2>/dev/null)"
+            rm -f resp.json; exit 1
+          fi
+          rm -f resp.json
+          echo "SUPABASE_SERVICE_KEY synced"
+
       - name: Build
         run: vercel build --prod --token="$VERCEL_TOKEN"
         env:

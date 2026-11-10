@@ -3,8 +3,8 @@
 // no SDK, no build step. SUPABASE_URL/ANON_KEY are the same public values
 // already hardcoded in api/chat.js (safe to duplicate client-side).
 const Admin = (() => {
-  const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
-  const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
+  const SUPABASE_URL = "https://hyedzuckgyadlpsfksrb.supabase.co";
+  const ANON_KEY = "sb_publishable_RjUDgV5nwIOI050ZWpPFMA_oqdkIsiY";
   const STORAGE_KEY = "amasas_admin_session";
 
   // Client-side mirror of the SQL role checks — UX only (shows/hides nav and

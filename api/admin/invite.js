@@ -3,8 +3,8 @@
 // email. Everything else in the admin app (role changes, knowledge edits,
 // settings) goes through RPCs called with the signed-in admin's own token —
 // see supabase/migrations/0006_admin.sql.
-const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
-const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
+const SUPABASE_URL = "https://hyedzuckgyadlpsfksrb.supabase.co";
+const ANON_KEY = "sb_publishable_RjUDgV5nwIOI050ZWpPFMA_oqdkIsiY";
 const ROLES = ["owner", "admin", "editor", "viewer"];
 
 // Best-effort per-instance rate limit (serverless has no shared state without

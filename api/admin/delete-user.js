@@ -5,8 +5,8 @@
 // self-delete), not the presence of a service key. Only after that succeeds
 // do we reach for the service key, to fully revoke the account's sessions
 // and free its email for reuse (deactivation via admin_set_user does neither).
-const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
-const ANON_KEY = "sb_publishable_vw8EmUrhPDKBnD7BF0a8kA_N0DPF-es";
+const SUPABASE_URL = "https://hyedzuckgyadlpsfksrb.supabase.co";
+const ANON_KEY = "sb_publishable_RjUDgV5nwIOI050ZWpPFMA_oqdkIsiY";
 
 const hits = [];
 function rateLimited() {

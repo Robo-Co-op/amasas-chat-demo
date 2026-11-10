@@ -5,7 +5,7 @@
 // api/feedback.js (neither has one either). Never receives or stores chat
 // content, credentials, or tokens -- only structured, non-identifying
 // request metadata.
-const SUPABASE_URL = "https://jcokpgmqmtxefzjjenrx.supabase.co";
+const SUPABASE_URL = "https://hyedzuckgyadlpsfksrb.supabase.co";
 const EVENT_TYPES = ["landing_view", "chat_started"];
 
 // Minimal, dependency-free UA classifier -- directionally useful for an
