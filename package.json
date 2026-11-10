@@ -2,5 +2,11 @@
   "name": "amasas-chat",
   "version": "1.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.9.9"
+  }
 }
