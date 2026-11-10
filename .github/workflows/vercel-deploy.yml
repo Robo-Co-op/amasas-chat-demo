@@ -37,38 +37,41 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@64.5.0
 
-      - name: Pull Vercel project settings
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
-      # Slack bot credentials live in GitHub secrets; upsert them into the
-      # Vercel project's production env (REST API) before deploying, so the
-      # deployed /api/slack/events function can read them. `vercel env add`
-      # failed here with "Could not retrieve Project Settings", so this calls
-      # the API directly and logs the HTTP error (never the value) on failure.
-      # Only the two Slack values are synced; never fails the web deploy.
+      # Slack bot credentials live in GitHub secrets and are written to the
+      # Vercel project's production env through the REST API. Each existing
+      # copy is deleted and recreated as "sensitive": the "encrypted"
+      # production copies became unreadable (GET 404), which made
+      # `vercel pull` fail with "Production Project Environment Variable not
+      # found". This runs before `vercel pull` for that reason. Values are
+      # never logged.
       - name: Sync Slack secrets to Vercel
-        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
         run: |
-          query="upsert=true"
-          case "$VERCEL_ORG_ID" in team_*) query="$query&teamId=$VERCEL_ORG_ID" ;; esac
+          api="https://api.vercel.com"
+          team=""
+          case "$VERCEL_ORG_ID" in team_*) team="teamId=$VERCEL_ORG_ID" ;; esac
+          auth=(-H "Authorization: Bearer $VERCEL_TOKEN")
+          curl -sf "${auth[@]}" "$api/v10/projects/$VERCEL_PROJECT_ID/env?$team" > envs.json
           for name in SLACK_BOT_TOKEN SLACK_SIGNING_SECRET; do
             value="${!name}"
             if [ -z "$value" ]; then echo "$name not set in GitHub secrets; skipping"; continue; fi
-            body=$(jq -n --arg k "$name" --arg v "$value" '{key: $k, value: $v, type: "encrypted", target: ["production"]}')
-            code=$(curl -s -o resp.json -w '%{http_code}' -X POST               "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?$query"               -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" -d "$body")
-            if [ "$code" -lt 300 ]; then
-              echo "$name synced"
-            else
-              echo "::warning::$name sync failed: HTTP $code $(jq -c '{code: .error.code, message: .error.message}' resp.json 2>/dev/null)"
+            for id in $(jq -r --arg k "$name" '.envs[] | select(.key == $k) | .id' envs.json); do
+              code=$(curl -s -o resp.json -w '%{http_code}' -X DELETE "${auth[@]}" "$api/v9/projects/$VERCEL_PROJECT_ID/env/$id?$team")
+              echo "$name: deleted old copy $id (HTTP $code)"
+            done
+            body=$(jq -n --arg k "$name" --arg v "$value" '{key: $k, value: $v, type: "sensitive", target: ["production"]}')
+            code=$(curl -s -o resp.json -w '%{http_code}' -X POST "${auth[@]}" -H "Content-Type: application/json" \
+              "$api/v10/projects/$VERCEL_PROJECT_ID/env?upsert=true&$team" -d "$body")
+            if [ "$code" -ge 300 ]; then
+              echo "::error::$name sync failed: HTTP $code $(jq -c '{code: .error.code, message: .error.message}' resp.json 2>/dev/null)"
+              rm -f resp.json envs.json; exit 1
             fi
-            rm -f resp.json
+            echo "$name synced"
           done
+          rm -f resp.json envs.json
 
       # The Supabase service key must change together with the project URL in
       # the code, and team Developers cannot edit production env vars in the
@@ -93,6 +96,11 @@ jobs:
           fi
           rm -f resp.json
           echo "SUPABASE_SERVICE_KEY synced"
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
         run: vercel build --prod --token="$VERCEL_TOKEN"
