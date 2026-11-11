@@ -5,6 +5,10 @@
     },
     "api/slack/events.js": {
       "maxDuration": 300
+    },
+    "api/admin/invite.py": {
+      "maxDuration": 60,
+      "includeFiles": "supabase/email-templates/invite.html"
     }
   }
 }

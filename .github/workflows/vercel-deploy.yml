@@ -34,6 +34,11 @@ jobs:
         with:
           node-version: 20
 
+      # api/admin/invite.py is a Python function; `vercel build` needs Python.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install Vercel CLI
         run: npm install --global vercel@64.5.0
 
@@ -44,18 +49,22 @@ jobs:
       # `vercel pull` fail with "Production Project Environment Variable not
       # found". This runs before `vercel pull` for that reason. Values are
       # never logged.
-      - name: Sync Slack secrets to Vercel
+      #
+      # NOREPLY_EMAIL_PWD (the noreply@robocoop.org SMTP password) goes the same
+      # way: api/admin/invite.py sends admin invite emails with it.
+      - name: Sync Slack and SMTP secrets to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+          NOREPLY_EMAIL_PWD: ${{ secrets.NOREPLY_EMAIL_PWD }}
         run: |
           api="https://api.vercel.com"
           team=""
           case "$VERCEL_ORG_ID" in team_*) team="teamId=$VERCEL_ORG_ID" ;; esac
           auth=(-H "Authorization: Bearer $VERCEL_TOKEN")
           curl -sf "${auth[@]}" "$api/v10/projects/$VERCEL_PROJECT_ID/env?$team" > envs.json
-          for name in SLACK_BOT_TOKEN SLACK_SIGNING_SECRET; do
+          for name in SLACK_BOT_TOKEN SLACK_SIGNING_SECRET NOREPLY_EMAIL_PWD; do
             value="${!name}"
             if [ -z "$value" ]; then echo "$name not set in GitHub secrets; skipping"; continue; fi
             for id in $(jq -r --arg k "$name" '.envs[] | select(.key == $k) | .id' envs.json); do
