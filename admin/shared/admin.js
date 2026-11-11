@@ -60,15 +60,18 @@ const Admin = (() => {
     return data;
   }
 
+  // The reset email is sent by api/admin/password-reset.py over our own SMTP,
+  // not by Supabase Auth's mailer. The endpoint answers the same way whether
+  // or not the account exists, and this always resolves, so the UI never
+  // reveals which emails are registered admins.
   async function requestPasswordReset(email) {
-    const redirectTo = `${location.origin}/admin/login.html`;
-    await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: ANON_KEY },
-      body: JSON.stringify({ email }),
-    });
-    // Always resolve regardless of whether the account exists — don't leak
-    // which emails are registered admins.
+    try {
+      await fetch("/api/admin/password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch (_) { /* same message either way */ }
   }
 
   // Adopts a token set handed to us directly (e.g. from an invite/recovery
