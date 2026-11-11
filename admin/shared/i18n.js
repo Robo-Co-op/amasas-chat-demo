@@ -275,8 +275,8 @@ const I18n = (() => {
     "users.field.role": { ja: "ロール *", en: "Role *" },
     "users.invite_submit": { ja: "招待メールを送信", en: "Send invite email" },
     "users.invite_note": {
-      ja: "Supabase Auth の招待メール機能を使います。届かない場合は Supabase ダッシュボードから直接ユーザーを作成してください。",
-      en: "Uses Supabase Auth's invite email feature. If it doesn't arrive, create the user directly from the Supabase dashboard instead.",
+      ja: "noreply@robocoop.org から招待メールを送信します。届かない場合は迷惑メールフォルダを確認してください。",
+      en: "The invite email is sent from noreply@robocoop.org. If it doesn't arrive, check the spam folder.",
     },
     "users.invite_failed": { ja: "招待に失敗しました", en: "Invite failed" },
     "users.invite_sent": { ja: "招待メールを送信しました", en: "Invite email sent" },
