@@ -8,7 +8,11 @@
     },
     "api/admin/invite.py": {
       "maxDuration": 60,
-      "includeFiles": "supabase/email-templates/invite.html"
+      "includeFiles": "{api/admin/_mail.py,supabase/email-templates/*.html}"
+    },
+    "api/admin/password-reset.py": {
+      "maxDuration": 60,
+      "includeFiles": "{api/admin/_mail.py,supabase/email-templates/*.html}"
     }
   }
 }

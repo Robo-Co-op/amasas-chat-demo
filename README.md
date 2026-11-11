@@ -133,14 +133,14 @@ if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 0; else exit 1; fi
    insert into admin.admin_users (id, email, display_name, role)
    values ('<auth.usersのUUID>', '<メールアドレス>', '<表示名（任意）>', 'owner');
    ```
-4. 招待機能（`api/admin/invite.py`）はVercelの環境変数`SUPABASE_SERVICE_KEY`と`NOREPLY_EMAIL_PWD`（noreply@robocoop.orgのSMTPパスワード）を使います。本番（amasas-ai）ではどちらもデプロイワークフローがGitHub secretsから自動で設定します。
+4. 招待・パスワード再設定（`api/admin/invite.py` / `api/admin/password-reset.py`）はVercelの環境変数`SUPABASE_SERVICE_KEY`と`NOREPLY_EMAIL_PWD`（noreply@robocoop.orgのSMTPパスワード）を使います。本番（amasas-ai）ではどちらもデプロイワークフローがGitHub secretsから自動で設定します。
 5. デプロイ後、`/admin/login.html`からowner用アカウントでサインインします。以降の管理者は`admin/users.html`から招待できます（招待メールはアプリ側からnoreply@robocoop.orgで送信）。
 
 ### メール（招待・パスワード再設定）
 
 **招待メール**はSupabase Authのメール送信を使いません。`api/admin/invite.py`（Python）がGoTrueの`/auth/v1/admin/generate_link`でユーザーと招待リンクを作成し（この時点ではメールは送られない）、管理者ロールを登録してから、`supabase/email-templates/invite.html`をHostinger SMTP（`smtp.hostinger.com:465`、`noreply@robocoop.org`）で送信します。登録やメール送信に失敗した場合は作成したユーザーを削除するので、そのまま再招待できます。SMTPの接続先は環境変数`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_FROM_NAME`で上書きできます。テスト: `python -m unittest discover -s test -p "test_*.py"`。
 
-**パスワード再設定メール**は引き続きSupabase Authが送信します。Supabaseの既定メール送信は送信数が厳しく制限されているため（`email rate limit`エラー）、Supabaseダッシュボード → Authentication → Emails → SMTP Settingsで独自SMTPを設定してください。
+**パスワード再設定メール**も同じ仕組みです。ログイン画面の「パスワードをお忘れですか？」は`api/admin/password-reset.py`を呼び、Supabase Authに登録済みのアドレスにだけ`recovery.html`を送ります。アカウントの有無を推測されないよう、応答は常に同じ（`200 {"ok": true}`・最低3秒）で、同じアドレスへは1分に1通、全体で1分20件までに制限しています（インスタンス単位）。共通処理は`api/admin/_mail.py`（`_`始まりなのでエンドポイントにはならない）。
 
 あわせて、招待・パスワード再設定リンクの送信先を固定するため、Authentication → URL Configuration → **Redirect URLs**に以下を追加してください（このリポジトリは複数のVercelプロジェクトにデプロイされているため、ワイルドカードが必要です）:
 
@@ -148,7 +148,7 @@ if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 0; else exit 1; fi
 https://*.vercel.app/admin/login.html
 ```
 
-メールの見た目は`supabase/email-templates/`にAMASASのブランドに合わせたHTMLテンプレートを用意しています。`invite.html`はアプリ側の招待メールでそのまま使われます。`recovery.html`はSupabaseダッシュボード → Authentication → Emails → Templates → Reset Passwordに貼り付けてください（`{{ .ConfirmationURL }}`はSupabase側で自動置換されます）。
+メールの見た目は`supabase/email-templates/`にAMASASのブランドに合わせたHTMLテンプレートを用意しています。`invite.html` / `recovery.html`はアプリ側（`api/admin/_mail.py`）でそのまま使われ、`{{ .ConfirmationURL }}` / `{{ .Email }}` / `{{ .SiteURL }}`はそこで置換されます。Supabaseダッシュボードのテンプレートへの貼り付けは不要です。
 
 ### アクセス解析（Analytics）
 

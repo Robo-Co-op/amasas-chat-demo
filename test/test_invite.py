@@ -109,23 +109,10 @@ class InviteTests(unittest.TestCase):
         self.assertEqual(status, 500)
         self.assertIn("NOREPLY_EMAIL_PWD", payload["error"])
 
-    def test_email_message_built_and_sent_over_ssl(self):
-        smtp = mock.MagicMock()
-        with mock.patch.object(invite.smtplib, "SMTP_SSL", return_value=smtp) as ssl_cls:
-            invite.send_invite_email("new@example.org", "https://x/verify?a=1&b=2", "https://site")
-        ssl_cls.assert_called_once()
-        self.assertEqual(ssl_cls.call_args[0][:2], ("smtp.hostinger.com", 465))
-        conn = smtp.__enter__.return_value
-        conn.login.assert_called_once_with("noreply@robocoop.org", "pw")
-        msg = conn.send_message.call_args[0][0]
-        self.assertEqual(msg["To"], "new@example.org")
-        self.assertIn("noreply@robocoop.org", msg["From"])
-        html_part = msg.get_body(preferencelist=("html",)).get_content()
-        self.assertIn('href="https://x/verify?a=1&amp;b=2"', html_part)
-        self.assertNotIn("{{", html_part)
-        self.assertNotIn("Paste this into", html_part)
-        self.assertIn("https://x/verify?a=1&b=2", msg.get_body(preferencelist=("plain",)).get_content())
-
+    def test_send_invite_email_uses_invite_template(self):
+        with mock.patch.object(invite._mail, "send_email") as send:
+            invite.send_invite_email("new@example.org", "https://x/l", "https://site")
+        send.assert_called_once_with("invite", "new@example.org", "https://x/l", "https://site")
 
 if __name__ == "__main__":
     unittest.main()
