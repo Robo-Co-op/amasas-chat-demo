@@ -34,10 +34,13 @@ jobs:
         with:
           node-version: 20
 
-      # api/admin/invite.py is a Python function; `vercel build` needs Python.
+      # api/admin/*.py are Python functions. `vercel build` needs Python and,
+      # for its Python builder, `uv` on PATH ("[UV_ERROR] uv is required").
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v6
 
       - name: Install Vercel CLI
         run: npm install --global vercel@64.5.0

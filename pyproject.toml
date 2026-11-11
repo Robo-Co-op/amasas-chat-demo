@@ -1,0 +1,8 @@
+# Python serverless functions (api/admin/*.py). Standard library only.
+# Exists to pin the Python version Vercel's builder uses: without it the
+# builder generates its own manifest and picks the newest Python uv knows.
+[project]
+name = "amasas-admin-functions"
+version = "0.0.0"
+requires-python = "~=3.12.0"
+dependencies = []
