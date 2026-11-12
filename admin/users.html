@@ -86,7 +86,7 @@ const CAPS = () => [
           body: JSON.stringify({ email, displayName, role }),
         });
         const data = await r.json();
-        if (!r.ok) throw new Error(data.error || I18n.t("users.invite_failed"));
+        if (!r.ok) throw new Error(inviteErrorText(data));
         Admin.toast(I18n.t("users.invite_sent"), "ok");
         document.getElementById("invite-form").reset();
         await loadList();
@@ -94,6 +94,15 @@ const CAPS = () => [
         msg.innerHTML = `<div class="errbox">${Admin.esc(err.message)}</div>`;
       }
     });
+  }
+
+  // The server sends a stable `code`; translate it here so the message follows
+  // the EN/JP switch. Unknown codes fall back to the server's text.
+  function inviteErrorText(data) {
+    const key = data && data.code ? `users.invite_err.${data.code}` : null;
+    const translated = key ? I18n.t(key) : null;
+    const base = translated && translated !== key ? translated : (data && data.error) || I18n.t("users.invite_failed");
+    return data && data.detail ? `${base} (${data.detail})` : base;
   }
 
   async function loadList() {

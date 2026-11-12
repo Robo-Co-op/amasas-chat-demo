@@ -73,8 +73,7 @@ class InviteTests(unittest.TestCase):
     def test_smtp_failure_rolls_back_user(self):
         sb = FakeSupabase()
         status, payload, _ = self.run_invite(sb, send=mock.Mock(side_effect=OSError("smtp down")))
-        self.assertEqual(status, 502)
-        self.assertIn("SMTP", payload["error"])
+        self.assertEqual((status, payload["code"]), (502, "smtp_failed"))
         self.assertEqual(sb.urls()[-1], ("DELETE", "/auth/v1/admin/users/u-1"))
 
     def test_register_failure_rolls_back_and_sends_nothing(self):
@@ -84,11 +83,34 @@ class InviteTests(unittest.TestCase):
         send.assert_not_called()
         self.assertEqual(sb.urls()[-1], ("DELETE", "/auth/v1/admin/users/u-1"))
 
-    def test_existing_user_error_passes_through(self):
+    def test_existing_user_gets_its_own_code(self):
         status, payload, send = self.run_invite(FakeSupabase(link_status=422))
-        self.assertEqual(status, 502)
-        self.assertIn("already been registered", payload["error"])
+        self.assertEqual((status, payload["code"]), (409, "user_exists"))
         send.assert_not_called()
+
+    def test_other_link_errors_carry_detail(self):
+        status, payload, _ = self.run_invite(FakeSupabase(link_status=500))
+        self.assertEqual((status, payload["code"]), (502, "link_failed"))
+        self.assertIn("detail", payload)
+
+    def test_smtp_auth_rejection_is_reported_specifically(self):
+        sb = FakeSupabase()
+        err = invite.smtplib.SMTPAuthenticationError(535, b"5.7.8 Authentication failed")
+        status, payload, _ = self.run_invite(sb, send=mock.Mock(side_effect=err))
+        self.assertEqual((status, payload["code"], payload["detail"]), (502, "smtp_auth_failed", "SMTP 535"))
+        self.assertEqual(sb.urls()[-1], ("DELETE", "/auth/v1/admin/users/u-1"))
+
+    def test_every_error_code_is_translated_in_both_languages(self):
+        import re
+        codes = set(re.findall(r'fail\(\d+, "([a-z_]+)"', (ROOT / "api" / "admin" / "invite.py").read_text(encoding="utf-8")))
+        self.assertGreaterEqual(len(codes), 10)
+        i18n = (ROOT / "admin" / "shared" / "i18n.js").read_text(encoding="utf-8")
+        for code in sorted(codes):
+            with self.subTest(code=code):
+                m = re.search(r'"users\.invite_err\.' + code + r'":\s*\{(.*?)\}', i18n, re.S)
+                self.assertIsNotNone(m, f"missing i18n key users.invite_err.{code}")
+                self.assertIn("ja:", m.group(1))
+                self.assertIn("en:", m.group(1))
 
     def test_permissions(self):
         for caller, role, expected in [("viewer", "viewer", 403), ("editor", "viewer", 403), (None, "viewer", 403),
