@@ -65,7 +65,9 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
       location.replace(params.get("next") || "index.html");
       return;
     }
-    renderSignIn();
+    // #forgot survives the language switch (which reloads the page).
+    if (location.hash === "#forgot") renderForgot();
+    else renderSignIn();
   }
 
   function renderSignIn(linkError) {
@@ -109,12 +111,55 @@ if (/-robo-co-op-team\.vercel\.app$/.test(location.hostname) || /-dimdimlians-pr
       }
     });
 
-    document.getElementById("forgot").addEventListener("click", async (e) => {
+    document.getElementById("forgot").addEventListener("click", (e) => {
       e.preventDefault();
-      const email = document.getElementById("email").value.trim();
-      if (!email) { msg.innerHTML = `<div class="errbox">${I18n.t("login.forgot_email_required")}</div>`; return; }
+      renderForgot(document.getElementById("email").value.trim());
+    });
+  }
+
+  // Separate "reset your password" view: its own email field and send button,
+  // instead of reusing the sign-in form's email box.
+  function renderForgot(prefill) {
+    history.replaceState(null, "", location.pathname + location.search + "#forgot");
+    cardbody.innerHTML = `
+      <p class="lede">${I18n.t("login.forgot_lede")}</p>
+      <div id="msg"></div>
+      <form id="fform">
+        <div class="field">
+          <label for="femail">${I18n.t("login.email")}</label>
+          <input id="femail" type="email" autocomplete="username" required />
+        </div>
+        <button class="btn primary" type="submit" id="fsubmit" style="width:100%;justify-content:center;">${I18n.t("login.forgot_submit")}</button>
+      </form>
+      <p style="margin-top:14px;">
+        <a href="#" id="back" style="font-size:12px;">${I18n.t("login.back_to_signin")}</a>
+      </p>
+    `;
+    const form = document.getElementById("fform");
+    const input = document.getElementById("femail");
+    const msg = document.getElementById("msg");
+    const submitBtn = document.getElementById("fsubmit");
+    input.value = prefill || "";
+    input.focus();
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = input.value.trim();
+      if (!email) return;
+      msg.innerHTML = "";
+      submitBtn.disabled = true;
+      submitBtn.textContent = I18n.t("login.forgot_progress");
       await Admin.requestPasswordReset(email);
       msg.innerHTML = `<div class="okbox">${I18n.t("login.reset_sent")}</div>`;
+      submitBtn.disabled = false;
+      submitBtn.textContent = I18n.t("login.forgot_submit");
+    });
+
+    document.getElementById("back").addEventListener("click", (e) => {
+      e.preventDefault();
+      history.replaceState(null, "", location.pathname + location.search);
+      renderSignIn();
+      document.getElementById("email").value = input.value.trim();
     });
   }
 

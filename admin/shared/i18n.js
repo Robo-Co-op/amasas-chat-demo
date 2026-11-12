@@ -56,7 +56,13 @@ const I18n = (() => {
     "login.signin": { ja: "サインイン", en: "Sign in" },
     "login.signin_progress": { ja: "サインイン中…", en: "Signing in…" },
     "login.forgot": { ja: "パスワードをお忘れですか？", en: "Forgot your password?" },
-    "login.forgot_email_required": { ja: "先にメールアドレスを入力してください", en: "Enter your email address first" },
+    "login.forgot_lede": {
+      ja: "登録済みのメールアドレスを入力してください。パスワード再設定用のリンクをお送りします。",
+      en: "Enter the email address you sign in with and we'll send you a link to set a new password.",
+    },
+    "login.forgot_submit": { ja: "再設定リンクを送信", en: "Send reset link" },
+    "login.forgot_progress": { ja: "送信中…", en: "Sending…" },
+    "login.back_to_signin": { ja: "← サインインに戻る", en: "← Back to sign in" },
     "login.reset_sent": {
       ja: "登録されているアドレスであれば、パスワード再設定メールを送信しました。",
       en: "If that address is registered, a password reset email has been sent.",
